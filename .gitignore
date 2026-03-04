@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environments
+.venv/
+uv.lock
+
+# IDE
+.vscode/
+.DS_Store
+*.swp
+*.swo
+
+# Sphinx docs build
+docs/source/_build/
+
+# Generated figures (repo ships the checked-in versions)
+figures/output/
+
+# Run artefacts
+runs/
+checkpoints/
+lightning_logs/
+scratch/
+
+# Conversation log
+docs/build_conversation.md
