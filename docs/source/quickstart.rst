@@ -98,6 +98,37 @@ This generates publication-quality geographic maps, TMRCA landscapes, population
 heatmaps, selective sweep panels, and a composite dashboard.  See
 :doc:`visualization` for the full gallery.
 
-.. image:: ../../figures/07_composite_dashboard.png
+
+Example results
+---------------
+
+The figures below are from a quickstart run: 1000 constant-demography tree
+sequences, the ``base`` model preset trained for 20 epochs with Beta-NLL loss
+on 3 GPUs.
+
+**True vs Predicted log(TMRCA)** — scatter with marginal histograms showing
+overall calibration (r = 0.87, RMSE = 0.85):
+
+.. image:: _static/figures/01_true_vs_predicted.png
+   :width: 80%
+   :align: center
+   :alt: True vs predicted log(TMRCA)
+
+**TMRCA along the genome** — predicted mean (blue) with ±1 s.d. confidence
+band overlaid on the true values (red step) for three sample pairs:
+
+.. image:: _static/figures/02_tmrca_along_genome.png
    :width: 100%
-   :alt: Composite dashboard
+   :alt: TMRCA along the genome
+
+**Residuals** — spatial distribution and histogram of prediction errors:
+
+.. image:: _static/figures/03_residuals.png
+   :width: 100%
+   :alt: Prediction residuals
+
+**Summary** — per-pair Pearson correlation and validation RMSE training curve:
+
+.. image:: _static/figures/04_summary.png
+   :width: 100%
+   :alt: Per-pair correlation and training curve

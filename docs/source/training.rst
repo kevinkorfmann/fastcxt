@@ -55,14 +55,20 @@ The ``TrainingConfig`` dataclass controls optimizer and scheduler settings:
 Loss function
 -------------
 
-The Gaussian negative log-likelihood loss simultaneously trains the mean
-and variance predictions:
+fastcxt uses **Beta-NLL loss** (β = 0.5), a stabilized variant of Gaussian
+negative log-likelihood that prevents variance inflation during early training:
 
 .. math::
 
-   \mathcal{L} = \frac{1}{2} \left( \log \hat\sigma^2 + \frac{(y - \hat\mu)^2}{\hat\sigma^2} \right)
+   \mathcal{L} = \frac{1}{2}\,\hat\sigma^{2\beta}\!\left(
+     \log \hat\sigma^2 + \frac{(y - \hat\mu)^2}{\hat\sigma^2}
+   \right)
 
-The log-variance output is clamped to [-10, 10] for numerical stability.
+The key insight is that :math:`\hat\sigma^2` is **detached** inside the
+weighting term, so gradient signal for large-error samples is down-weighted
+without creating a shortcut for the variance head to simply predict large
+variance everywhere.  The log-variance output is clamped to [-10, 10] for
+numerical stability.
 
 
 Validation metrics
@@ -70,6 +76,13 @@ Validation metrics
 
 During training, the following metrics are tracked:
 
-- ``train_loss`` / ``val_loss``: Gaussian NLL
+- ``train_loss`` / ``val_loss``: Beta-NLL
 - ``train_rmse`` / ``val_rmse``: RMSE of the mean prediction
 - ``val_coverage_95``: fraction of targets within the 95% prediction interval
+
+The figure below shows a typical training curve for the ``base`` preset
+(20 epochs, 3 GPUs, 1000 simulated tree sequences):
+
+.. image:: _static/figures/04_summary.png
+   :width: 100%
+   :alt: Training curve and per-pair correlation
