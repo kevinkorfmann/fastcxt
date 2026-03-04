@@ -137,9 +137,8 @@ class TestProcessOneTs:
                               sequence_length=int(small_ts.sequence_length))
         assert X.shape[0] == 5
         assert X.shape[1] == 2   # xor/xnor
-        assert X.shape[2] == 4   # scales
         assert y.shape[0] == 5
-        assert X.shape[3] == y.shape[1]  # windows match
+        assert X.shape[2] == y.shape[1]  # windows match
 
     def test_output_dtypes(self, small_ts):
         pairs = choose_pairs(small_ts.num_samples, 3, seed=42)

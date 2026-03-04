@@ -125,7 +125,7 @@ def process_one_ts(
 
     Returns
     -------
-    X : (P, 2, n_scales, n_windows, n_samples)  float16
+    X : (P, 2, n_windows, n_samples)  float16
     y : (P, n_windows)  float16  (log-TMRCA)
     """
     if sequence_length is None:
@@ -312,7 +312,7 @@ def _run_job(job: PreprocessJob) -> str:
             try:
                 from fastcxt.tree_utils import extract_topology_features
                 tf = extract_topology_features(
-                    ts, n_windows=X.shape[3],
+                    ts, n_windows=X.shape[2],
                     window_size=job.window_size,
                     max_internal=ts.num_samples - 1,
                 )

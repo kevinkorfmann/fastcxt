@@ -14,8 +14,8 @@ Overview
    Input                     Encoder                         Decoder              Output
    ─────                     ───────                         ───────              ──────
    SFS features         ┌──→ BiMambaBlock ──→ FiLM  ──┐    BiMambaBlock ──┐
-   (2, 4, 500, N)  ──→  │   BiMambaBlock ──→ FiLM  ──┤    + skip conns   ├──→  (μ, log σ²)
-   + InputProjection    │   BiMambaBlock ──→ FiLM  ──┤    BiMambaBlock ──┤      per window
+   (2, 500, N)  ──→     │   BiMambaBlock ──→ FiLM  ──┤    + skip conns   ├──→  (μ, log σ²)
+   MultiScaleConvStem   │   BiMambaBlock ──→ FiLM  ──┤    BiMambaBlock ──┤      per window
                         │   ...                      └──→ ...            ──┘
    Mutation rate ────────────────────────→ FiLM (γ, β)
    Tree topology ──────(optional)──→ TreeEncoder ──→ add to embedding
@@ -69,10 +69,11 @@ sampling needed.
 Variable sample sizes
 ---------------------
 
-``InputProjection`` handles arbitrary sample counts by zero-padding (or
-truncating) the SFS sample dimension to ``max_samples`` before projecting
-into the model's latent space. Any sample size from 4 to ``max_samples``
-works without architecture changes.
+``MultiScaleInputProjection`` handles arbitrary sample counts by zero-padding
+(or truncating) the SFS sample dimension to ``max_samples``.  A pointwise
+convolution compresses the frequency axis, then parallel 1D convolutions with
+different kernel sizes extract multi-scale spatial patterns along the genome.
+Any sample size from 4 to ``max_samples`` works without architecture changes.
 
 
 Tree topology integration

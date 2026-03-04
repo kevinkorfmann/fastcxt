@@ -19,8 +19,8 @@ class PairDataset(Dataset):
 
     Directory layout (per simulation):
         <split>/<scenario>/<id>/
-            X.npy          (P, 2, n_scales, n_windows, n_samples)  float16
-            y.npy          (P, n_windows)                          float16  (log-TMRCA)
+            X.npy          (P, 2, n_windows, n_samples)  float16
+            y.npy          (P, n_windows)                float16  (log-TMRCA)
             meta.json      { ..., "mutation_rate": float, ... }
             [tree_feats.npy]   optional (P, n_windows, tree_feat_dim) float32
 

@@ -1,13 +1,13 @@
 """Site-frequency spectrum computation for fastcxt.
 
-Cleaned-up version of cxt/sfs.py with the same core algorithm.
+Single-scale SFS binning per genomic window.  Multi-scale feature
+extraction is handled by learned convolutions inside the model
+(see modules.MultiScaleInputProjection).
 """
 
 from __future__ import annotations
 
 import numpy as np
-
-W_MULTIPLIERS = (2, 8, 32, 64)
 
 
 def calculate_window_sfs(
@@ -61,11 +61,15 @@ def build_sfs_tensor(
     sequence_length: float = 1e6,
     window_size: int = 2000,
 ) -> np.ndarray:
-    """Build multi-scale SFS tensor for one pivot pair.
+    """Build single-scale SFS tensor for one pivot pair.
+
+    Sites are split into XOR (pivots differ) and XNOR (pivots agree)
+    channels and binned at the base window resolution.  Multi-scale
+    aggregation is delegated to the model's convolutional stem.
 
     Returns
     -------
-    X : (2, n_scales, n_windows, num_samples)  float16, log1p-transformed
+    X : (2, n_windows, num_samples)  float16, log1p-transformed
     """
     step_size = window_size
     num_samples = gm.shape[0]
@@ -77,23 +81,21 @@ def build_sfs_tensor(
     pos_xor, freq_xor = positions[xor_mask], freqs[xor_mask]
     pos_xnor, freq_xnor = positions[~xor_mask], freqs[~xor_mask]
 
-    Xs_xor = np.zeros((len(W_MULTIPLIERS), n_windows, num_samples), dtype=np.int32)
-    Xs_xnor = np.zeros_like(Xs_xor)
+    sfs_xor = np.zeros((n_windows, num_samples), dtype=np.int32)
+    sfs_xnor = np.zeros_like(sfs_xor)
 
-    for i, m in enumerate(W_MULTIPLIERS):
-        ws = window_size * m
-        if pos_xor.size:
-            Xs_xor[i] = calculate_window_sfs(
-                pos_xor.astype(np.float32), freq_xor.astype(np.int32),
-                window_size=ws, sequence_length=sequence_length,
-                num_samples=num_samples, step_size=step_size,
-            )
-        if pos_xnor.size:
-            Xs_xnor[i] = calculate_window_sfs(
-                pos_xnor.astype(np.float32), freq_xnor.astype(np.int32),
-                window_size=ws, sequence_length=sequence_length,
-                num_samples=num_samples, step_size=step_size,
-            )
+    if pos_xor.size:
+        sfs_xor = calculate_window_sfs(
+            pos_xor.astype(np.float32), freq_xor.astype(np.int32),
+            window_size=window_size, sequence_length=sequence_length,
+            num_samples=num_samples, step_size=step_size,
+        )
+    if pos_xnor.size:
+        sfs_xnor = calculate_window_sfs(
+            pos_xnor.astype(np.float32), freq_xnor.astype(np.int32),
+            window_size=window_size, sequence_length=sequence_length,
+            num_samples=num_samples, step_size=step_size,
+        )
 
-    X = np.stack([Xs_xor, Xs_xnor], axis=0).astype(np.float16)
+    X = np.stack([sfs_xor, sfs_xnor], axis=0).astype(np.float16)
     return np.log1p(X)

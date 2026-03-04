@@ -204,7 +204,7 @@ composite dashboard, and a scaling comparison.
 ```
 Input                  Encoder                      Decoder            Output
 ─────                  ───────                      ───────            ──────
-SFS (2,4,W,N)  →  InputProjection  →  [BiMamba + FiLM] ×6  →  [BiMamba + skip] ×4  →  (μ, log σ²)
+SFS (2,W,N)  →  MultiScaleConvStem  →  [BiMamba + FiLM] ×6  →  [BiMamba + skip] ×4  →  (μ, log σ²)
 mutation rate  ──────────────────────→  FiLM (γ, β)
 tree topology  ──(optional)──→  TreeEncoder  →  add to embedding
 ```
@@ -258,8 +258,8 @@ fastcxt/
 ├── config.py        # FastCxtConfig, PRESETS, TrainingConfig
 ├── paths.py         # Centralized cluster/sietch path configuration
 ├── model.py         # FastCxtModel (bidirectional Mamba encoder-decoder)
-├── modules.py       # BiMambaBlock, InputProjection, FiLMLayer, UncertaintyHead, TreeEncoder
-├── sfs.py           # Multi-scale SFS computation
+├── modules.py       # BiMambaBlock, MultiScaleInputProjection, FiLMLayer, UncertaintyHead, TreeEncoder
+├── sfs.py           # Single-scale SFS computation (multi-scale learned in model)
 ├── tree_utils.py    # Coalescence order extraction, LCA lookup
 ├── dataset.py       # PairDataset, TreeAugmentedPairDataset
 ├── simulate.py      # Scenario registry, stdpopsim/msprime simulation

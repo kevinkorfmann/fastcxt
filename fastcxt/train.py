@@ -1,6 +1,7 @@
 """Training script for fastcxt models.
 
-Single-pass forward with Gaussian NLL loss.  No autoregressive generation.
+Single-pass forward with Beta-NLL loss (Seitzer et al., 2022).
+No autoregressive generation.
 
 Usage:
     python -m fastcxt.train --model base --dataset-path /path/to/processed --gpus 0 1 2
@@ -23,25 +24,38 @@ from fastcxt.dataset import PairDataset, TreeAugmentedPairDataset
 
 
 # ---------------------------------------------------------------------------
-# Gaussian NLL loss
+# Beta-NLL loss  (Seitzer et al., 2022)
 # ---------------------------------------------------------------------------
 
-def gaussian_nll_loss(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """Heteroscedastic Gaussian negative log-likelihood.
+def beta_nll_loss(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    beta: float = 0.5,
+) -> torch.Tensor:
+    """Heteroscedastic Gaussian NLL with beta-weighting to prevent
+    early variance inflation.
+
+    When beta=0 this is standard Gaussian NLL.  beta=0.5 (default)
+    down-weights the reconstruction term by detached sigma^beta,
+    preventing the model from trivially reducing loss by inflating
+    the predicted variance.
 
     Parameters
     ----------
     pred : (B, W, 2) where [..., 0] = mu, [..., 1] = log_sigma2
     target : (B, W)  continuous log-TMRCA
+    beta : float in [0, 1], default 0.5
 
     Returns
     -------
     scalar loss
     """
     mu = pred[..., 0]
-    log_sigma2 = pred[..., 1]
-    log_sigma2 = torch.clamp(log_sigma2, min=-10, max=10)
-    return 0.5 * (log_sigma2 + (target - mu) ** 2 / torch.exp(log_sigma2)).mean()
+    log_sigma2 = torch.clamp(pred[..., 1], min=-10, max=10)
+    sigma2 = torch.exp(log_sigma2)
+    mse = (target - mu) ** 2
+    weight = sigma2.detach() ** beta
+    return 0.5 * (weight * (log_sigma2 + mse / sigma2)).mean()
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +82,7 @@ class LitFastCxt(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         pred, y = self._forward(batch)
-        loss = gaussian_nll_loss(pred, y)
+        loss = beta_nll_loss(pred, y)
         mu = pred[..., 0]
         rmse = ((mu - y) ** 2).mean().sqrt()
         self.log("train_loss", loss, prog_bar=True)
@@ -78,7 +92,7 @@ class LitFastCxt(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         pred, y = self._forward(batch)
-        loss = gaussian_nll_loss(pred, y)
+        loss = beta_nll_loss(pred, y)
         mu = pred[..., 0]
         rmse = ((mu - y) ** 2).mean().sqrt()
         self.log("val_loss", loss, prog_bar=True, sync_dist=True)
@@ -131,12 +145,6 @@ def main():
     args = ap.parse_args()
 
     model_cfg = PRESETS[args.model].for_training(batch_size=args.batch_size)
-    train_cfg = TrainingConfig(
-        max_lr=args.lr,
-        batch_size=args.batch_size,
-        grad_accum_steps=args.grad_accum,
-        num_workers=args.workers,
-    )
 
     DatasetCls = TreeAugmentedPairDataset if model_cfg.use_trees else PairDataset
     ds_kwargs = dict(root=args.dataset_path, max_samples=model_cfg.max_samples)
@@ -146,6 +154,20 @@ def main():
     train_ds = DatasetCls(split="train", **ds_kwargs)
     test_ds = DatasetCls(split="test", **ds_kwargs)
     print(f"Train: {len(train_ds)} samples, Test: {len(test_ds)} samples")
+
+    n_gpus = len(args.gpus)
+    steps_per_epoch = len(train_ds) // (args.batch_size * n_gpus * args.grad_accum)
+    total_opt_steps = steps_per_epoch * args.epochs
+
+    train_cfg = TrainingConfig(
+        max_lr=args.lr,
+        batch_size=args.batch_size,
+        grad_accum_steps=args.grad_accum,
+        num_workers=args.workers,
+        lr_decay_iters=total_opt_steps,
+        warmup_iters=min(100, total_opt_steps // 10),
+    )
+    print(f"Scheduler: {train_cfg.warmup_iters} warmup -> cosine decay over {total_opt_steps} steps")
 
     train_loader = DataLoader(
         train_ds, batch_size=train_cfg.batch_size,

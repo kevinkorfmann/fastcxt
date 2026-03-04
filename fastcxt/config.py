@@ -19,11 +19,15 @@ class FastCxtConfig:
     n_dec_layers: int = 4
 
     # Input
-    n_window_scales: int = 4
     n_channels: int = 2          # xor / xnor
     max_samples: int = 200       # zero-pad SFS to this size
     window_size: int = 2000      # base SFS window in bp
     n_windows: int = 500         # number of output windows per 1Mb block
+
+    # Multi-scale convolutional stem
+    stem_channels: int = 64
+    conv_channels: int = 64
+    kernel_sizes: tuple[int, ...] = (3, 11, 31, 63)
 
     # Conditioning
     use_mutation_rate: bool = True
@@ -64,7 +68,7 @@ class TrainingConfig:
     max_lr: float = 3e-4
     min_lr: float = 3e-5
     warmup_iters: int = 100
-    lr_decay_iters: int = 150_000
+    lr_decay_iters: int = 0  # 0 = auto-compute from training length
     batch_size: int = 128
     grad_accum_steps: int = 4
     weight_decay: float = 0.1
