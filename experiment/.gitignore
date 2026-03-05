@@ -1,0 +1,18 @@
+# Simulated data (large, reproducible)
+sims/
+
+# Training logs and checkpoints
+lightning_logs/
+
+# Generated figures (reproducible from checkpoints)
+figures/
+figures_trees/
+
+# Model weights
+*.pt
+
+# Atlas outputs
+my_atlas/
+
+# Misc
+__pycache__/

@@ -18,9 +18,24 @@ import torch.nn as nn
 import lightning as L
 from torch.utils.data import DataLoader
 
+import os
+import numpy as np
+from dataclasses import replace
 from fastcxt.config import PRESETS, TrainingConfig
 from fastcxt.model import FastCxtModel
 from fastcxt.dataset import PairDataset, TreeAugmentedPairDataset
+
+
+def _detect_tree_feat_dim(dataset_path: str) -> int:
+    """Walk the dataset to find a tree_feats.npy and return its last dim."""
+    for dirpath, _, filenames in os.walk(dataset_path):
+        if "tree_feats.npy" in filenames:
+            tf = np.load(os.path.join(dirpath, "tree_feats.npy"), mmap_mode="r")
+            return tf.shape[-1]
+    raise FileNotFoundError(
+        f"No tree_feats.npy found under {dataset_path}. "
+        "Re-run preprocessing with --extract-trees."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +164,10 @@ def main():
     DatasetCls = TreeAugmentedPairDataset if model_cfg.use_trees else PairDataset
     ds_kwargs = dict(root=args.dataset_path, max_samples=model_cfg.max_samples)
     if model_cfg.use_trees:
-        ds_kwargs["tree_feat_dim"] = (model_cfg.max_samples - 1) * 3
+        tree_feat_dim = _detect_tree_feat_dim(args.dataset_path)
+        ds_kwargs["tree_feat_dim"] = tree_feat_dim
+        model_cfg = replace(model_cfg, tree_feat_dim=tree_feat_dim)
+        print(f"Tree feature dim: {tree_feat_dim}")
 
     train_ds = DatasetCls(split="train", **ds_kwargs)
     test_ds = DatasetCls(split="test", **ds_kwargs)

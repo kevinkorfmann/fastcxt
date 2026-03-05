@@ -49,7 +49,7 @@ class FastCxtModel(nn.Module):
         self.tree_encoder = None
         if config.use_trees:
             self.tree_encoder = TreeEncoder(
-                tree_feat_dim=config.tree_embed_dim,
+                tree_feat_dim=config.tree_feat_dim,
                 d_model=d,
                 dropout=config.dropout,
             )

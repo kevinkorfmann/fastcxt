@@ -34,7 +34,7 @@ class FastCxtConfig:
 
     # Tree topology
     use_trees: bool = False
-    tree_embed_dim: int = 64
+    tree_feat_dim: int = 995   # (max_samples - 1) * 5; auto-set by training CLI
 
     # Output
     output_dim: int = 2          # (mu, log_sigma2) per window

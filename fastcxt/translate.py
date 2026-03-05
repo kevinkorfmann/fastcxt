@@ -126,6 +126,27 @@ def predict(
     return means, variances
 
 
+def _extract_tree_feats_for_blocks(
+    ts,
+    blocks: list[tuple],
+    pivot_pairs: list[tuple],
+    window_size: int = 2000,
+) -> np.ndarray:
+    """Extract tree topology features for each block, tiled per pair."""
+    from fastcxt.tree_utils import extract_topology_features
+    max_internal = ts.num_samples - 1
+    parts = []
+    for bstart, bend in blocks:
+        n_windows = (bend - bstart) // window_size
+        tf = extract_topology_features(
+            ts, n_windows=n_windows, window_size=window_size,
+            max_internal=max_internal,
+        )
+        tf_tiled = np.tile(tf[np.newaxis], (len(pivot_pairs), 1, 1))
+        parts.append(tf_tiled)
+    return np.concatenate(parts, axis=0).astype(np.float32)
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -141,6 +162,7 @@ def translate_from_genotype_matrix(
     batch_size: int = 128,
     build_workers: int = 4,
     progress: bool = True,
+    tree_feats: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Infer pairwise TMRCA from a genotype matrix.
 
@@ -163,9 +185,16 @@ def translate_from_genotype_matrix(
     if torch.cuda.is_available():
         X_t = X_t.pin_memory()
 
+    tree_t = None
+    if tree_feats is not None:
+        tree_t = torch.as_tensor(tree_feats, dtype=param_dtype)
+        if torch.cuda.is_available():
+            tree_t = tree_t.pin_memory()
+
     means, variances = predict(
         model, X_t, mutation_rate=mutation_rate,
         batch_size=batch_size, device=device, progress=progress,
+        tree_feats=tree_t,
     )
 
     if torch.cuda.is_available():
@@ -179,7 +208,16 @@ def translate_from_ts(ts, model, **kwargs):
     """Infer TMRCA from a tree sequence."""
     positions = ts.tables.sites.position
     gm = ts.genotype_matrix().T
-    return translate_from_genotype_matrix(gm=gm, positions=positions, model=model, **kwargs)
+    tree_feats = kwargs.pop("tree_feats", None)
+    if tree_feats is None and getattr(model, "tree_encoder", None) is not None:
+        tree_feats = _extract_tree_feats_for_blocks(
+            ts, kwargs.get("blocks", [(0, int(ts.sequence_length))]),
+            kwargs.get("pivot_pairs", [(0, 1)]),
+        )
+    return translate_from_genotype_matrix(
+        gm=gm, positions=positions, model=model,
+        tree_feats=tree_feats, **kwargs,
+    )
 
 
 def translate(

@@ -27,18 +27,21 @@ except ImportError:
     tskit = None
 
 
+FEATS_PER_NODE = 5
+
+
 def extract_coalescence_order(tree: "tskit.Tree", n_samples: int) -> np.ndarray:
     """Extract the coalescence rank vector from a single tskit Tree.
 
-    Returns an array of shape (n_internal_nodes, 3):
-        [rank, left_child_sample_set_hash, right_child_sample_set_hash]
+    Returns an array of shape (n_internal_nodes, FEATS_PER_NODE):
+        [rank, min_leaf_left, min_leaf_right, subtree_size_left, subtree_size_right]
 
-    For simplicity, we encode each internal node as:
-        (rank, min_sample_below_left, min_sample_below_right)
-    where rank is assigned bottom-up (earliest coalescence = 0).
+    Subtree sizes encode the number of descendant leaves below each child,
+    which directly determines expected coalescent waiting times.
     """
+    n_internal = n_samples - 1
     if tree.num_roots > 1:
-        return np.zeros((n_samples - 1, 3), dtype=np.float32)
+        return np.zeros((n_internal, FEATS_PER_NODE), dtype=np.float32)
 
     internal_nodes = []
     for node in tree.nodes(order="timeasc"):
@@ -49,13 +52,20 @@ def extract_coalescence_order(tree: "tskit.Tree", n_samples: int) -> np.ndarray:
             continue
         left_min = min(tree.leaves(children[0]))
         right_min = min(tree.leaves(children[1]))
-        internal_nodes.append((left_min, right_min))
+        left_size = tree.num_samples(children[0])
+        right_size = tree.num_samples(children[1])
+        internal_nodes.append((left_min, right_min, left_size, right_size))
 
-    n_internal = n_samples - 1
-    out = np.zeros((n_internal, 3), dtype=np.float32)
-    for rank, (lm, rm) in enumerate(internal_nodes[:n_internal]):
-        out[rank] = [rank / max(n_internal - 1, 1), lm / max(n_samples - 1, 1),
-                     rm / max(n_samples - 1, 1)]
+    out = np.zeros((n_internal, FEATS_PER_NODE), dtype=np.float32)
+    norm_n = max(n_samples - 1, 1)
+    for rank, (lm, rm, ls, rs) in enumerate(internal_nodes[:n_internal]):
+        out[rank] = [
+            rank / max(n_internal - 1, 1),
+            lm / norm_n,
+            rm / norm_n,
+            ls / n_samples,
+            rs / n_samples,
+        ]
     return out
 
 
@@ -79,9 +89,9 @@ def extract_topology_features(
 
     Returns
     -------
-    features : (n_windows, max_internal * 3)  float32
+    features : (n_windows, max_internal * FEATS_PER_NODE)  float32
     """
-    feat_dim = max_internal * 3
+    feat_dim = max_internal * FEATS_PER_NODE
     features = np.zeros((n_windows, feat_dim), dtype=np.float32)
     n_samples = ts.num_samples
 
@@ -98,25 +108,48 @@ def extract_topology_features(
 
         coal_order = extract_coalescence_order(current_tree, n_samples)
         n_nodes = min(coal_order.shape[0], max_internal)
-        features[w, :n_nodes * 3] = coal_order[:n_nodes].ravel()
+        features[w, :n_nodes * FEATS_PER_NODE] = coal_order[:n_nodes].ravel()
 
     return features
 
 
-def node_times_from_pair_predictions(
+def extract_node_times(
     ts: "tskit.TreeSequence",
-    pair_tmrcas: dict[tuple[int, int], np.ndarray],
+    n_windows: int = 500,
+    window_size: int = 2000,
+    max_internal: int = 199,
 ) -> np.ndarray:
-    """Recover per-window internal-node times from pairwise TMRCA predictions.
+    """Extract log(time) of each internal node per window.
 
-    Given predictions for a subset of pairs, assign times to each internal
-    node by averaging the TMRCA of any pair whose LCA is that node.
+    Internal nodes are ordered by increasing time (same ordering as
+    ``extract_coalescence_order``).
 
     Returns
     -------
-    node_times : (n_internal_nodes, n_windows) array of predicted node times.
+    node_times : (n_windows, max_internal) float32
     """
-    raise NotImplementedError("Placeholder for tree-aware node-time inference")
+    times = np.zeros((n_windows, max_internal), dtype=np.float32)
+    tree_iter = ts.trees()
+    current_tree = next(tree_iter)
+
+    for w in range(n_windows):
+        w_mid = w * window_size + window_size // 2
+        while current_tree.interval.right <= w_mid:
+            try:
+                current_tree = next(tree_iter)
+            except StopIteration:
+                break
+
+        rank = 0
+        for node in current_tree.nodes(order="timeasc"):
+            if current_tree.is_leaf(node):
+                continue
+            if rank >= max_internal:
+                break
+            times[w, rank] = np.log(max(current_tree.time(node), 1e-10))
+            rank += 1
+
+    return times
 
 
 def lca_lookup(
@@ -132,7 +165,9 @@ def lca_lookup(
     For each window, find the LCA of (sample_a, sample_b) in the local tree
     and return the predicted time for that internal node.
 
-    This is O(n_windows * log(n)) per pair, replacing a full model forward pass.
+    Parameters
+    ----------
+    node_times : (n_windows, n_internal) predicted log-times per node
     """
     tmrcas = np.zeros(n_windows, dtype=np.float32)
     tree_iter = ts.trees()
@@ -148,8 +183,56 @@ def lca_lookup(
         mrca_node = current_tree.mrca(sample_a, sample_b)
         if mrca_node != tskit.NULL:
             node_idx = _node_to_internal_index(current_tree, mrca_node)
-            if node_idx is not None and node_idx < node_times.shape[0]:
-                tmrcas[w] = node_times[node_idx, w]
+            if node_idx is not None and node_idx < node_times.shape[1]:
+                tmrcas[w] = node_times[w, node_idx]
+
+    return tmrcas
+
+
+def lca_lookup_batch(
+    ts: "tskit.TreeSequence",
+    node_times: np.ndarray,
+    pairs: list[tuple[int, int]],
+    n_windows: int = 500,
+    window_size: int = 2000,
+) -> np.ndarray:
+    """Look up TMRCA for multiple pairs in one tree-sequence pass.
+
+    More efficient than calling lca_lookup per pair because we iterate
+    through windows only once and resolve all pairs at each position.
+
+    Returns
+    -------
+    tmrcas : (n_pairs, n_windows) float32
+    """
+    n_pairs = len(pairs)
+    tmrcas = np.zeros((n_pairs, n_windows), dtype=np.float32)
+    tree_iter = ts.trees()
+    current_tree = next(tree_iter)
+
+    for w in range(n_windows):
+        w_mid = w * window_size + window_size // 2
+        while current_tree.interval.right <= w_mid:
+            try:
+                current_tree = next(tree_iter)
+            except StopIteration:
+                break
+
+        # Cache node_id -> rank mapping for this tree
+        rank_map = {}
+        rank = 0
+        for node in current_tree.nodes(order="timeasc"):
+            if current_tree.is_leaf(node):
+                continue
+            rank_map[node] = rank
+            rank += 1
+
+        for p_idx, (sa, sb) in enumerate(pairs):
+            mrca_node = current_tree.mrca(sa, sb)
+            if mrca_node != tskit.NULL:
+                node_idx = rank_map.get(mrca_node)
+                if node_idx is not None and node_idx < node_times.shape[1]:
+                    tmrcas[p_idx, w] = node_times[w, node_idx]
 
     return tmrcas
 
