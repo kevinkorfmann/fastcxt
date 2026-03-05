@@ -132,7 +132,7 @@ def train_model(
     model: NodeTimeModel,
     train_feats, train_times, train_mu, train_masks,
     val_feats, val_times, val_mu, val_masks,
-    epochs: int = 50,
+    epochs: int = 30,
     batch_size: int = 32,
     lr: float = 3e-4,
 ):

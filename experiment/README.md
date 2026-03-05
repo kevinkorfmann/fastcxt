@@ -100,7 +100,7 @@ fastcxt-train \
     --model base \
     --dataset-path ./experiment/sims/processed \
     --gpus 0 1 2 \
-    --epochs 20 \
+    --epochs 30 \
     --batch-size 128 \
     --grad-accum 2 \
     --workers 8
@@ -132,7 +132,7 @@ cd experiment
 CUDA_VISIBLE_DEVICES=0 python train_and_benchmark_node_times.py \
     --sims-dir ./sims \
     --max-samples 200 \
-    --epochs 50
+    --epochs 30
 ```
 
 **Model: `NodeTimeModel`**

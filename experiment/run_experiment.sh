@@ -24,8 +24,8 @@ SIMS_DIR="$SCRIPT_DIR/sims"
 
 # ── Defaults ────────────────────────────────────────────────────────────
 GPUS="0 1 2"
-PAIRWISE_EPOCHS=20
-NODE_EPOCHS=50
+PAIRWISE_EPOCHS=30
+NODE_EPOCHS=30
 NUM_TS_PER_SIZE=200
 SAMPLE_SIZES="10 25 50 100 200"
 MAX_SAMPLES=200
