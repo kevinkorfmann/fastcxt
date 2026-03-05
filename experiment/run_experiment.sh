@@ -94,7 +94,16 @@ TOTAL_START=$SECONDS
 if [ "$SKIP_INSTALL" = false ]; then
     step "Step 0: Install fastcxt"
     cd "$REPO_DIR"
+    if [ ! -d ".venv" ]; then
+        uv venv
+    fi
+    source .venv/bin/activate
     uv pip install -e ".[all]"
+fi
+
+# Ensure venv is active for subsequent steps
+if [ -f "$REPO_DIR/.venv/bin/activate" ]; then
+    source "$REPO_DIR/.venv/bin/activate"
 fi
 
 # ── Step 1: Simulate ────────────────────────────────────────────────────
