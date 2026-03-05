@@ -41,8 +41,11 @@ CLI usage
    # Human with genetic map
    fastcxt-simulate --scenario HomSap --genetic-map HapMapII_GRCh38 --data-dir ./sims/homsap
 
-   # Variable sample sizes
-   fastcxt-simulate --scenario constant --n-samples 100 --data-dir ./sims/constant_n100
+   # Variable sample sizes (recommended for training)
+   for N in 10 25 50 100 200; do
+       fastcxt-simulate --scenario constant \
+           --data-dir ./sims/n${N} --num-ts 200 --n-samples $N
+   done
 
    # Custom parameters
    fastcxt-simulate --scenario constant \

@@ -1,7 +1,7 @@
 Training
 ========
 
-fastcxt uses PyTorch Lightning for distributed training with Gaussian NLL loss.
+fastcxt uses PyTorch Lightning for distributed training with Beta-NLL loss.
 
 
 Quick start
@@ -81,7 +81,7 @@ During training, the following metrics are tracked:
 - ``val_coverage_95``: fraction of targets within the 95% prediction interval
 
 The figure below shows a typical training curve for the ``base`` preset
-(20 epochs, 3 GPUs, 1000 simulated tree sequences):
+(20 epochs, 3 GPUs, 1000 simulated tree sequences with variable sample sizes):
 
 .. image:: _static/figures/04_summary.png
    :width: 100%

@@ -11,6 +11,9 @@ figures_trees/
 # Model weights
 *.pt
 
+# Benchmark results (reproducible)
+benchmark_results.csv
+
 # Atlas outputs
 my_atlas/
 

@@ -248,7 +248,7 @@ class TestPreprocessJob:
             out_root="/tmp/out", split="train", window_size=2000,
             sequence_length=1_000_000, num_pairs=100, global_seed=42,
             skip_existing=False, simplify_n=0, extract_trees=False,
-            mutation_rate_override=None, accessibility_mask_path=None,
+            max_internal=0, mutation_rate_override=None, accessibility_mask_path=None,
         )
         assert job.idx == 0
         assert job.accessibility_mask_path is None

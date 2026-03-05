@@ -32,23 +32,35 @@ the GPU dependencies:
 End-to-end example
 ------------------
 
-1. **Simulate** training data (1000 tree sequences, constant demography):
+1. **Simulate** training data with variable sample sizes:
 
 .. code-block:: bash
 
-   fastcxt-simulate --scenario constant --data-dir ./sims/constant --num-ts 1000
+   for N in 10 25 50 100 200; do
+       fastcxt-simulate --scenario constant \
+           --data-dir ./sims/n${N} --num-ts 200 --n-samples $N
+   done
+
+This creates 1000 tree sequences total (200 per sample size) in separate
+subdirectories.
 
 2. **Preprocess** into SFS features and TMRCA targets:
 
 .. code-block:: bash
 
-   fastcxt-preprocess --base-dir ./sims/constant --out-subdir processed
+   fastcxt-preprocess --base-dir ./sims --out-subdir processed \
+       --extract-trees --max-samples 200
+
+The preprocessor scans ``sims/`` recursively, discovers all ``.trees`` files, and
+uses each subdirectory name (``n10``, ``n25``, ...) as the scenario label.  The
+``--max-samples 200`` flag pads tree topology features to a consistent dimension
+so all sample sizes can be batched together.
 
 3. **Train** a model:
 
 .. code-block:: bash
 
-   fastcxt-train --model base --dataset-path ./sims/constant/processed --gpus 0
+   fastcxt-train --model base --dataset-path ./sims/processed --gpus 0
 
 4. **Run inference** from Python:
 
@@ -103,8 +115,8 @@ Example results
 ---------------
 
 The figures below are from a quickstart run: 1000 constant-demography tree
-sequences, the ``base`` model preset trained for 20 epochs with Beta-NLL loss
-on 3 GPUs.
+sequences with variable sample sizes (10--200), the ``base`` model preset
+trained for 20 epochs with Beta-NLL loss on 3 GPUs.
 
 **True vs Predicted log(TMRCA)** — scatter with marginal histograms showing
 overall calibration (r = 0.87, RMSE = 0.85):

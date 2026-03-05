@@ -236,6 +236,7 @@ class PreprocessJob:
     skip_existing: bool
     simplify_n: int
     extract_trees: bool
+    max_internal: int
     mutation_rate_override: float | None
     accessibility_mask_path: str | None
 
@@ -311,10 +312,11 @@ def _run_job(job: PreprocessJob) -> str:
         if job.extract_trees:
             try:
                 from fastcxt.tree_utils import extract_topology_features
+                max_internal = job.max_internal if job.max_internal > 0 else ts.num_samples - 1
                 tf = extract_topology_features(
                     ts, n_windows=X.shape[2],
                     window_size=job.window_size,
-                    max_internal=ts.num_samples - 1,
+                    max_internal=max_internal,
                 )
                 tf_all = np.tile(tf[np.newaxis], (len(pairs), 1, 1))
                 np.save(out_dir / "tree_feats.npy", tf_all.astype(np.float32))
@@ -349,6 +351,8 @@ def main():
     ap.add_argument("--num-workers", type=int, default=os.cpu_count() or 4)
     ap.add_argument("--extract-trees", action="store_true",
                     help="Compute tsinfer topology features")
+    ap.add_argument("--max-samples", type=int, default=0,
+                    help="Pad tree features to this sample count (0 = use actual per-file)")
     ap.add_argument("--mutation-rate", type=float, default=None,
                     help="Override mutation rate (default: estimate from tree sequence)")
     ap.add_argument("--accessibility-mask", type=str, default=None,
@@ -383,6 +387,7 @@ def main():
             skip_existing=args.skip_existing,
             simplify_n=args.simplify_n,
             extract_trees=args.extract_trees,
+            max_internal=max(args.max_samples - 1, 0),
             mutation_rate_override=args.mutation_rate,
             accessibility_mask_path=args.accessibility_mask,
         ))

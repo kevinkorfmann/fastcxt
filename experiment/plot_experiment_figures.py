@@ -19,7 +19,6 @@ from fastcxt.train import LitFastCxt
 from fastcxt.translate import translate_from_ts
 
 EXPERIMENT_DIR = Path(__file__).resolve().parent
-TS_FILE = EXPERIMENT_DIR / "sims/constant/ts_00000000.trees"
 
 WINDOW_SIZE = 2000
 MUTATION_RATE = 1e-8
@@ -58,28 +57,41 @@ def main():
     ap.add_argument("--out-dir", type=str, default=None,
                     help="Output directory (default: figures/ or figures_trees/ from checkpoint)")
     ap.add_argument("--title", type=str, default=None,
-                    help="Subtitle for fig 2 (e.g. 'v9 (20 epochs, Beta-NLL)')")
+                    help="Subtitle for fig 2 (e.g. 'base (20 epochs, Beta-NLL)')")
+    ap.add_argument("--ts-file", type=str, default=None,
+                    help="Path to .trees file for evaluation (auto-discovers if omitted)")
     args = ap.parse_args()
 
     checkpoint = Path(args.checkpoint)
     if args.out_dir:
         fig_dir = Path(args.out_dir)
     else:
-        fig_dir = EXPERIMENT_DIR / "figures" if "version_9" in str(checkpoint) else EXPERIMENT_DIR / "figures_trees"
+        fig_dir = EXPERIMENT_DIR / "figures"
     if args.title:
         fig_title = args.title
     else:
-        fig_title = "v9 (20 epochs, Beta-NLL)" if "version_9" in str(checkpoint) else "v11 (base_trees, 20 epochs, Beta-NLL)"
+        version = checkpoint.parent.parent.name if "checkpoints" in str(checkpoint) else "model"
+        fig_title = f"{version} (Beta-NLL)"
 
     _setup_style()
     fig_dir.mkdir(parents=True, exist_ok=True)
     for f in fig_dir.glob("*.png"):
         f.unlink()
 
-    print("Loading model and tree sequence ...")
+    if args.ts_file:
+        ts_file = Path(args.ts_file)
+    else:
+        sims_dir = EXPERIMENT_DIR / "sims"
+        ts_files = sorted(sims_dir.rglob("*.trees"))
+        if not ts_files:
+            print(f"ERROR: No .trees files found under {sims_dir}")
+            return
+        ts_file = ts_files[0]
+
+    print(f"Loading model and tree sequence ({ts_file.name}) ...")
     lit = LitFastCxt.load_from_checkpoint(str(checkpoint), map_location="cpu")
     model = lit.model
-    ts = tskit.load(str(TS_FILE))
+    ts = tskit.load(str(ts_file))
     seq_len = int(ts.sequence_length)
 
     pivot_pairs = [(0, 1), (2, 3), (4, 5)]

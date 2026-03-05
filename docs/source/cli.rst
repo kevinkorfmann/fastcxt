@@ -43,6 +43,9 @@ fastcxt-preprocess
    --skip-existing     Skip already-processed files
    --num-workers       Parallel workers (default: CPU count)
    --extract-trees     Compute tree topology features
+   --max-samples       Pad tree features to this sample count (default: 0 = per-file).
+                       Use when training on variable sample sizes to ensure
+                       consistent feature dimensions (e.g. --max-samples 200).
    --mutation-rate     Override mutation rate
    --accessibility-mask  Path to .npz accessibility mask
 

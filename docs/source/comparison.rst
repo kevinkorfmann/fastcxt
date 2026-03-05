@@ -238,7 +238,7 @@ Configuration comparison
      - ``window_size = 2000``
    * - Loss function
      - Cross-entropy (classification)
-     - Gaussian NLL (regression)
+     - Beta-NLL (β=0.5, regression)
 
 
 API migration guide

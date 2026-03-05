@@ -15,12 +15,12 @@ Pipeline overview
        ├──→ genotype matrix extraction
        ├──→ biallelic filtering
        ├──→ (optional) accessibility mask application
-       ├──→ multi-scale SFS computation (xor/xnor × 4 window scales)
+       ├──→ SFS computation (xor/xnor channels)
        ├──→ windowed TMRCA computation (exact span-weighted averages)
        ├──→ (optional) tree topology feature extraction
        │
        └──→ output per simulation:
-               X.npy           (P, 2, 4, W, N)  float16
+               X.npy           (P, 2, W, N)  float16
                y.npy           (P, W)            float16  log-TMRCA
                pairs.npy       (P, 2)            int32
                meta.json       { mutation_rate, num_samples, ... }
@@ -43,6 +43,13 @@ CLI usage
    # With tree topology features
    fastcxt-preprocess --base-dir ./sims/anogam \
        --extract-trees \
+       --out-subdir processed
+
+   # Variable sample sizes (recommended): point --base-dir at the parent
+   # directory containing per-size subdirectories.  --max-samples pads tree
+   # features to a consistent dimension so all sizes can be batched.
+   fastcxt-preprocess --base-dir ./sims \
+       --extract-trees --max-samples 200 \
        --out-subdir processed
 
    # Customize pair sampling
@@ -75,15 +82,24 @@ Output layout
 
    processed/
    ├── train/
-   │   ├── default/
+   │   ├── n10/                    # scenario = subdirectory name
    │   │   ├── ts_00000000_i0/
-   │   │   │   ├── X.npy
-   │   │   │   ├── y.npy
-   │   │   │   ├── pairs.npy
-   │   │   │   └── meta.json
+   │   │   │   ├── X.npy           # (P, 2, W, n_samples) float16
+   │   │   │   ├── y.npy           # (P, W) float16
+   │   │   │   ├── pairs.npy       # (P, 2) int32
+   │   │   │   ├── meta.json
+   │   │   │   └── tree_feats.npy  # (P, W, feat_dim) float32 (optional)
    │   │   └── ts_00000001_i1/
    │   │       └── ...
-   │   └── scenario_name/
+   │   ├── n50/
+   │   │   └── ...
+   │   └── n200/
    │       └── ...
    └── test/
        └── ...
+
+When preprocessing tree sequences with different sample sizes, point
+``--base-dir`` at the parent directory.  Each subdirectory name becomes the
+scenario label in the output.  Use ``--max-samples`` to ensure tree topology
+features have a consistent dimension across all sample sizes (the SFS
+dimension is handled automatically by zero-padding in the model).
