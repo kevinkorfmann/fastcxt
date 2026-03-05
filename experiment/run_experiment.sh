@@ -90,6 +90,30 @@ elapsed() {
 
 TOTAL_START=$SECONDS
 
+# ── Auto-detect CUDA toolkit ────────────────────────────────────────────
+if [ -z "${CUDA_HOME:-}" ]; then
+    for candidate in \
+        /usr/local/cuda \
+        /usr/local/cuda-12 \
+        /usr/local/cuda-12.* \
+        "$HOME/miniconda/envs/"*/; do
+        if [ -x "${candidate}/bin/nvcc" ]; then
+            export CUDA_HOME="$candidate"
+            break
+        fi
+    done
+fi
+if [ -n "${CUDA_HOME:-}" ]; then
+    export PATH="$CUDA_HOME/bin:$PATH"
+    export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH:-}"
+    echo "CUDA_HOME=$CUDA_HOME  (nvcc: $(nvcc --version 2>/dev/null | grep release || echo 'found'))"
+else
+    echo "WARNING: nvcc not found. mamba-ssm build will fail without CUDA toolkit."
+    echo "  Set CUDA_HOME before running, e.g.:"
+    echo "    export CUDA_HOME=/usr/local/cuda"
+    echo "    bash run_experiment.sh $*"
+fi
+
 # ── Step 0: Install ─────────────────────────────────────────────────────
 if [ "$SKIP_INSTALL" = false ]; then
     step "Step 0: Install fastcxt"
