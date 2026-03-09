@@ -81,6 +81,12 @@ class PairDataset(Dataset):
         Xi = torch.as_tensor(np.array(X[p_idx]), dtype=torch.float32)
         Xi = torch.log1p(Xi)
 
+        N = Xi.shape[-1]
+        if N < self.max_samples:
+            Xi = torch.nn.functional.pad(Xi, (0, self.max_samples - N))
+        elif N > self.max_samples:
+            Xi = Xi[..., :self.max_samples]
+
         yi = torch.as_tensor(np.array(y[p_idx]), dtype=torch.float32)
 
         mu_rate = torch.tensor([np.log(mutation_rate)], dtype=torch.float32)
