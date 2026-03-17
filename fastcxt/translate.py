@@ -131,15 +131,34 @@ def _extract_tree_feats_for_blocks(
     blocks: list[tuple],
     pivot_pairs: list[tuple],
     window_size: int = 2000,
+    use_tsinfer: bool = False,
+    tree_feat_dim: int | None = None,
 ) -> np.ndarray:
-    """Extract tree topology features for each block, tiled per pair."""
-    from fastcxt.tree_utils import extract_topology_features
-    max_internal = ts.num_samples - 1
+    """Extract tree topology features for each block, tiled per pair.
+
+    When *use_tsinfer* is True, runs tsinfer on the genotype data to obtain
+    an inferred topology instead of using the (ground-truth) trees in *ts*.
+
+    *tree_feat_dim*, when given, pads/truncates the feature vector to match
+    the model's expected input dimension.
+    """
+    from fastcxt.tree_utils import extract_topology_features, FEATS_PER_NODE
+
+    source_ts = ts
+    if use_tsinfer:
+        from fastcxt.preprocess import _run_tsinfer
+        source_ts = _run_tsinfer(ts)
+
+    if tree_feat_dim is not None:
+        max_internal = tree_feat_dim // FEATS_PER_NODE
+    else:
+        max_internal = ts.num_samples - 1
+
     parts = []
     for bstart, bend in blocks:
         n_windows = (bend - bstart) // window_size
         tf = extract_topology_features(
-            ts, n_windows=n_windows, window_size=window_size,
+            source_ts, n_windows=n_windows, window_size=window_size,
             max_internal=max_internal,
         )
         tf_tiled = np.tile(tf[np.newaxis], (len(pivot_pairs), 1, 1))
@@ -173,7 +192,8 @@ def translate_from_genotype_matrix(
     index_map : (N, 2) mapping each row to [block_idx, pivot_idx]
     """
     a, b = blocks[0]
-    window_size = int((b - a) / 500)
+    n_win = getattr(model, 'config', None) and model.config.n_windows or 500
+    window_size = int((b - a) / n_win)
 
     X, index_map = _build_sources(
         gm, positions, blocks, pivot_pairs,
@@ -205,14 +225,27 @@ def translate_from_genotype_matrix(
 
 
 def translate_from_ts(ts, model, **kwargs):
-    """Infer TMRCA from a tree sequence."""
+    """Infer TMRCA from a tree sequence.
+
+    Pass *use_tsinfer=True* to run tsinfer on the genotype data and feed
+    inferred topology features to the model instead of ground-truth trees.
+    """
     positions = ts.tables.sites.position
     gm = ts.genotype_matrix().T
     tree_feats = kwargs.pop("tree_feats", None)
+    use_tsinfer = kwargs.pop("use_tsinfer", False)
     if tree_feats is None and getattr(model, "tree_encoder", None) is not None:
+        tree_feat_dim = getattr(model.config, "tree_feat_dim", None)
+        blocks = kwargs.get("blocks", [(0, int(ts.sequence_length))])
+        a, b = blocks[0]
+        n_win = getattr(model, 'config', None) and model.config.n_windows or 500
+        window_size = int((b - a) / n_win)
         tree_feats = _extract_tree_feats_for_blocks(
-            ts, kwargs.get("blocks", [(0, int(ts.sequence_length))]),
+            ts, blocks,
             kwargs.get("pivot_pairs", [(0, 1)]),
+            window_size=window_size,
+            use_tsinfer=use_tsinfer,
+            tree_feat_dim=tree_feat_dim,
         )
     return translate_from_genotype_matrix(
         gm=gm, positions=positions, model=model,

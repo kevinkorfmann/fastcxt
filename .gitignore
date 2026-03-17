@@ -26,7 +26,22 @@ figures/output/
 runs/
 checkpoints/
 lightning_logs/
+*_logs/
 scratch/
+nohup*.out
+
+# Scratch/intermediate files
+_scratch/
+
+# Simulation data and training artifacts
+sims/
+*.trees
+*.ckpt
+*.npz
+
+# Paper build artifacts
+paper/tectonic
+paper/paper.pdf
 
 # Conversation log
 docs/build_conversation.md

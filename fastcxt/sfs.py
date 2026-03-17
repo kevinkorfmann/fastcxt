@@ -25,20 +25,18 @@ def calculate_window_sfs(
     sfs : ndarray (n_windows, num_samples)
     """
     n_windows = int(np.ceil(sequence_length / step_size))
-    window_starts = np.arange(n_windows) * step_size
-    window_ends = np.minimum(window_starts + window_size, sequence_length)
 
-    site_in_window = (
-        (positions[:, np.newaxis] >= window_starts)
-        & (positions[:, np.newaxis] < window_ends)
+    if len(positions) == 0:
+        return np.zeros((n_windows, num_samples), dtype=np.int32)
+
+    # O(n_sites) integer division instead of O(n_sites * n_windows) broadcasting
+    win_idx = np.clip(
+        (positions // step_size).astype(np.int64), 0, n_windows - 1
     )
-
-    sfs = np.zeros((n_windows, num_samples), dtype=np.int32)
-    for i in range(n_windows):
-        wf = pivot_frequencies[site_in_window[:, i]]
-        if wf.size:
-            sfs[i] = np.bincount(wf, minlength=num_samples)[:num_samples]
-    return sfs
+    freq_clipped = np.clip(pivot_frequencies.astype(np.int64), 0, num_samples - 1)
+    flat = win_idx * num_samples + freq_clipped
+    sfs = np.bincount(flat, minlength=n_windows * num_samples).astype(np.int32)
+    return sfs.reshape(n_windows, num_samples)
 
 
 def basic_filtering(
@@ -75,27 +73,22 @@ def build_sfs_tensor(
     num_samples = gm.shape[0]
     n_windows = int(np.ceil(sequence_length / step_size))
 
+    # Compute window indices and frequencies once for all sites
+    win_idx = np.clip(
+        (positions // step_size).astype(np.int64), 0, n_windows - 1
+    )
+    freqs = np.clip(gm.sum(0).astype(np.int64), 0, num_samples - 1)
     xor_mask = (gm[pivot_a] ^ gm[pivot_b]).astype(bool)
-    freqs = gm.sum(0).astype(np.int32)
 
-    pos_xor, freq_xor = positions[xor_mask], freqs[xor_mask]
-    pos_xnor, freq_xnor = positions[~xor_mask], freqs[~xor_mask]
+    # Flat bincount for XOR and XNOR channels
+    flat_size = n_windows * num_samples
 
-    sfs_xor = np.zeros((n_windows, num_samples), dtype=np.int32)
-    sfs_xnor = np.zeros_like(sfs_xor)
+    flat_xor = win_idx[xor_mask] * num_samples + freqs[xor_mask]
+    sfs_xor = np.bincount(flat_xor, minlength=flat_size).reshape(n_windows, num_samples)
 
-    if pos_xor.size:
-        sfs_xor = calculate_window_sfs(
-            pos_xor.astype(np.float32), freq_xor.astype(np.int32),
-            window_size=window_size, sequence_length=sequence_length,
-            num_samples=num_samples, step_size=step_size,
-        )
-    if pos_xnor.size:
-        sfs_xnor = calculate_window_sfs(
-            pos_xnor.astype(np.float32), freq_xnor.astype(np.int32),
-            window_size=window_size, sequence_length=sequence_length,
-            num_samples=num_samples, step_size=step_size,
-        )
+    xnor_mask = ~xor_mask
+    flat_xnor = win_idx[xnor_mask] * num_samples + freqs[xnor_mask]
+    sfs_xnor = np.bincount(flat_xnor, minlength=flat_size).reshape(n_windows, num_samples)
 
     X = np.stack([sfs_xor, sfs_xnor], axis=0).astype(np.float16)
     return np.log1p(X)

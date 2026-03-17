@@ -21,9 +21,11 @@ from torch.utils.data import DataLoader
 import os
 import numpy as np
 from dataclasses import replace
-from fastcxt.config import PRESETS, TrainingConfig
+from fastcxt.config import PRESETS, FastCxtConfig, TrainingConfig
 from fastcxt.model import FastCxtModel
-from fastcxt.dataset import PairDataset, TreeAugmentedPairDataset
+from fastcxt.dataset import PairDataset, TreeAugmentedPairDataset, LazyPairDataset
+
+torch.serialization.add_safe_globals([FastCxtConfig, TrainingConfig])
 
 
 def _detect_tree_feat_dim(dataset_path: str) -> int:
@@ -80,6 +82,7 @@ def beta_nll_loss(
 class LitFastCxt(L.LightningModule):
     def __init__(self, model_config, training_config: dict | None = None):
         super().__init__()
+        self.model_config = model_config
         self.model = FastCxtModel(model_config)
         self.training_config = training_config or TrainingConfig().__dict__
         if isinstance(self.training_config, TrainingConfig):
@@ -92,6 +95,12 @@ class LitFastCxt(L.LightningModule):
         else:
             x, y, mu_rate = batch
             tree_feats = None
+        # Truncate to model's n_windows if data has more windows
+        W = self.model_config.n_windows
+        x = x[:, :, :W, :]
+        y = y[:, :W]
+        if tree_feats is not None:
+            tree_feats = tree_feats[:, :W, :]
         pred = self.model(x, mu_rate, tree_feats)
         return pred, y
 
@@ -157,17 +166,33 @@ def main():
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--checkpoint", type=str, default=None)
     ap.add_argument("--log-dir", type=str, default=None)
+    ap.add_argument("--dataset-mode", type=str, default="standard",
+                    choices=["standard", "lazy"],
+                    help="Dataset format: 'standard' (pre-computed SFS) or 'lazy' (on-the-fly SFS)")
+    ap.add_argument("--no-compile", action="store_true",
+                    help="Disable torch.compile")
     args = ap.parse_args()
 
     model_cfg = PRESETS[args.model].for_training(batch_size=args.batch_size)
 
-    DatasetCls = TreeAugmentedPairDataset if model_cfg.use_trees else PairDataset
-    ds_kwargs = dict(root=args.dataset_path, max_samples=model_cfg.max_samples)
-    if model_cfg.use_trees:
-        tree_feat_dim = _detect_tree_feat_dim(args.dataset_path)
-        ds_kwargs["tree_feat_dim"] = tree_feat_dim
-        model_cfg = replace(model_cfg, tree_feat_dim=tree_feat_dim)
-        print(f"Tree feature dim: {tree_feat_dim}")
+    if args.dataset_mode == "lazy":
+        tree_feat_dim = _detect_tree_feat_dim(args.dataset_path) if model_cfg.use_trees else 597
+        if model_cfg.use_trees:
+            model_cfg = replace(model_cfg, tree_feat_dim=tree_feat_dim)
+            print(f"Tree feature dim: {tree_feat_dim}")
+        ds_kwargs = dict(
+            root=args.dataset_path, max_samples=model_cfg.max_samples,
+            use_trees=model_cfg.use_trees, tree_feat_dim=tree_feat_dim,
+        )
+        DatasetCls = LazyPairDataset
+    else:
+        DatasetCls = TreeAugmentedPairDataset if model_cfg.use_trees else PairDataset
+        ds_kwargs = dict(root=args.dataset_path, max_samples=model_cfg.max_samples)
+        if model_cfg.use_trees:
+            tree_feat_dim = _detect_tree_feat_dim(args.dataset_path)
+            ds_kwargs["tree_feat_dim"] = tree_feat_dim
+            model_cfg = replace(model_cfg, tree_feat_dim=tree_feat_dim)
+            print(f"Tree feature dim: {tree_feat_dim}")
 
     train_ds = DatasetCls(split="train", **ds_kwargs)
     test_ds = DatasetCls(split="test", **ds_kwargs)
@@ -207,6 +232,10 @@ def main():
         )
     else:
         lit_model = LitFastCxt(model_cfg, training_config=train_cfg.__dict__)
+
+    # torch.compile fuses Mamba2 kernel launches and reduces Python overhead
+    if not args.no_compile:
+        lit_model.model = torch.compile(lit_model.model)
 
     torch.set_float32_matmul_precision("medium")
     trainer_kwargs = dict(

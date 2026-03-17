@@ -236,9 +236,23 @@ class PreprocessJob:
     skip_existing: bool
     simplify_n: int
     extract_trees: bool
+    extract_tsinfer_trees: bool
     max_internal: int
     mutation_rate_override: float | None
     accessibility_mask_path: str | None
+    lazy_sfs: bool = False
+
+
+def _run_tsinfer(ts: tskit.TreeSequence) -> tskit.TreeSequence:
+    """Run tsinfer on a tree sequence to get an inferred topology.
+
+    Strips timing information from the ground truth and infers topology
+    from the genotype data alone, returning a tree sequence with
+    tsinfer-inferred trees.
+    """
+    import tsinfer
+    sd = tsinfer.SampleData.from_tree_sequence(ts, use_sites_time=False)
+    return tsinfer.infer(sd)
 
 
 def _run_job(job: PreprocessJob) -> str:
@@ -251,7 +265,8 @@ def _run_job(job: PreprocessJob) -> str:
     out_dir = out_root / job.split / scenario / short_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    if job.skip_existing and (out_dir / "X.npy").exists() and (out_dir / "y.npy").exists():
+    marker = "genotypes.npy" if job.lazy_sfs else "X.npy"
+    if job.skip_existing and (out_dir / marker).exists() and (out_dir / "y.npy").exists():
         return f"[skip] {job.split}/{scenario}/{short_id}"
 
     try:
@@ -282,14 +297,38 @@ def _run_job(job: PreprocessJob) -> str:
 
     try:
         pairs = choose_pairs(ts.num_samples, job.num_pairs, seed=pair_seed)
-        X, y = process_one_ts(
-            ts, pairs, job.window_size, job.sequence_length,
-            accessibility_mask=acc_mask,
-        )
 
-        np.save(out_dir / "X.npy", X)
-        np.save(out_dir / "y.npy", y)
-        np.save(out_dir / "pairs.npy", pairs)
+        if job.lazy_sfs:
+            # Lazy SFS mode: store genotype matrix + positions, compute SFS on-the-fly
+            gm = ts.genotype_matrix().T
+            positions = ts.tables.sites.position
+            gm, positions = basic_filtering(gm, positions)
+            if acc_mask is not None:
+                gm, positions = apply_accessibility_mask(gm, positions, acc_mask, job.sequence_length)
+
+            np.save(out_dir / "genotypes.npy", gm.astype(np.int8))
+            np.save(out_dir / "positions.npy", positions.astype(np.float64))
+
+            # Compute targets (y) for all pairs
+            n_windows = int(np.ceil(job.sequence_length / job.window_size))
+            y = np.empty((len(pairs), n_windows), dtype=np.float16)
+            for k in range(len(pairs)):
+                pa, pb = int(pairs[k][0]), int(pairs[k][1])
+                yk = windowed_tmrca(ts, pa, pb, job.window_size, job.sequence_length)
+                y[k] = np.log(np.clip(yk, 1e-10, None)).astype(np.float16)
+
+            np.save(out_dir / "y.npy", y)
+            np.save(out_dir / "pairs.npy", pairs)
+            status_shape = f"gm{gm.shape}  y{y.shape}"
+        else:
+            X, y = process_one_ts(
+                ts, pairs, job.window_size, job.sequence_length,
+                accessibility_mask=acc_mask,
+            )
+            np.save(out_dir / "X.npy", X)
+            np.save(out_dir / "y.npy", y)
+            np.save(out_dir / "pairs.npy", pairs)
+            status_shape = f"X{X.shape}  y{y.shape}"
 
         mu_rate = job.mutation_rate_override
         if mu_rate is None:
@@ -306,24 +345,53 @@ def _run_job(job: PreprocessJob) -> str:
             "mutation_rate": float(mu_rate),
             "has_accessibility_mask": acc_mask is not None,
         }
+        if job.lazy_sfs:
+            meta["storage_mode"] = "lazy_sfs"
         with open(out_dir / "meta.json", "w") as fp:
             json.dump(meta, fp, indent=2)
+
+        # Compute n_windows for tree extraction
+        if job.lazy_sfs:
+            n_win_tree = n_windows
+        else:
+            n_win_tree = X.shape[2]
 
         if job.extract_trees:
             try:
                 from fastcxt.tree_utils import extract_topology_features
                 max_internal = job.max_internal if job.max_internal > 0 else ts.num_samples - 1
                 tf = extract_topology_features(
-                    ts, n_windows=X.shape[2],
+                    ts, n_windows=n_win_tree,
                     window_size=job.window_size,
                     max_internal=max_internal,
                 )
-                tf_all = np.tile(tf[np.newaxis], (len(pairs), 1, 1))
-                np.save(out_dir / "tree_feats.npy", tf_all.astype(np.float32))
+                if job.lazy_sfs:
+                    np.save(out_dir / "tree_feats.npy", tf.astype(np.float32))
+                else:
+                    tf_all = np.tile(tf[np.newaxis], (len(pairs), 1, 1))
+                    np.save(out_dir / "tree_feats.npy", tf_all.astype(np.float32))
             except Exception as e:
                 return f"[warn] tree extraction failed for {f}: {e}"
 
-        return f"[ok] {job.split}/{scenario}/{short_id}  X{X.shape}  y{y.shape}"
+        if job.extract_tsinfer_trees:
+            try:
+                from fastcxt.tree_utils import extract_topology_features
+                inferred_ts = _run_tsinfer(ts)
+                max_internal = job.max_internal if job.max_internal > 0 else ts.num_samples - 1
+                tf = extract_topology_features(
+                    inferred_ts, n_windows=n_win_tree,
+                    window_size=job.window_size,
+                    max_internal=max_internal,
+                )
+                if job.lazy_sfs:
+                    np.save(out_dir / "tree_feats.npy", tf.astype(np.float32))
+                else:
+                    tf_all = np.tile(tf[np.newaxis], (len(pairs), 1, 1))
+                    np.save(out_dir / "tree_feats.npy", tf_all.astype(np.float32))
+            except Exception as e:
+                return f"[warn] tsinfer tree extraction failed for {f}: {e}"
+
+        return f"[ok] {job.split}/{scenario}/{short_id}  {status_shape}"
     except Exception as e:
         return f"[error] {f}: {e}"
 
@@ -350,13 +418,17 @@ def main():
     ap.add_argument("--skip-existing", action="store_true")
     ap.add_argument("--num-workers", type=int, default=os.cpu_count() or 4)
     ap.add_argument("--extract-trees", action="store_true",
-                    help="Compute tsinfer topology features")
+                    help="Extract ground-truth tree topology features")
+    ap.add_argument("--extract-tsinfer-trees", action="store_true",
+                    help="Run tsinfer and extract inferred tree topology features")
     ap.add_argument("--max-samples", type=int, default=0,
                     help="Pad tree features to this sample count (0 = use actual per-file)")
     ap.add_argument("--mutation-rate", type=float, default=None,
                     help="Override mutation rate (default: estimate from tree sequence)")
     ap.add_argument("--accessibility-mask", type=str, default=None,
                     help="Path to .npz accessibility mask (for missing-data regions)")
+    ap.add_argument("--lazy-sfs", action="store_true",
+                    help="Store genotype matrix + positions instead of pre-computed SFS (saves disk)")
     args = ap.parse_args()
 
     base = pathlib.Path(args.base_dir)
@@ -387,9 +459,11 @@ def main():
             skip_existing=args.skip_existing,
             simplify_n=args.simplify_n,
             extract_trees=args.extract_trees,
+            extract_tsinfer_trees=args.extract_tsinfer_trees,
             max_internal=max(args.max_samples - 1, 0),
             mutation_rate_override=args.mutation_rate,
             accessibility_mask_path=args.accessibility_mask,
+            lazy_sfs=args.lazy_sfs,
         ))
 
     with mp.Pool(processes=args.num_workers) as pool:

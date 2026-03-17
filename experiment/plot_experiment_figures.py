@@ -14,38 +14,53 @@ from matplotlib.gridspec import GridSpec
 import matplotlib.ticker as ticker
 import tskit
 
+import torch.serialization
+from fastcxt.config import FastCxtConfig, TrainingConfig
 from fastcxt.preprocess import windowed_tmrca
 from fastcxt.train import LitFastCxt
 from fastcxt.translate import translate_from_ts
+
+torch.serialization.add_safe_globals([FastCxtConfig, TrainingConfig])
 
 EXPERIMENT_DIR = Path(__file__).resolve().parent
 
 WINDOW_SIZE = 2000
 MUTATION_RATE = 1e-8
 
-BLUE = "#1f77b4"
-RED = "#d62728"
-GREY = "#7f7f7f"
+BLUE = "#2166ac"
+GREEN = "#1b7837"
+RED = "#b2182b"
+ORANGE = "#e08214"
+GREY = "#636363"
+BLACK = "#252525"
 
 
 def _setup_style():
     plt.rcParams.update({
         "figure.facecolor": "white",
-        "axes.facecolor": "#fafafa",
-        "axes.edgecolor": "#cccccc",
-        "axes.linewidth": 0.8,
-        "axes.grid": True,
-        "grid.color": "#e0e0e0",
-        "grid.linewidth": 0.5,
-        "grid.alpha": 1.0,
+        "axes.facecolor": "white",
+        "axes.edgecolor": BLACK,
+        "axes.linewidth": 0.6,
+        "axes.grid": False,
         "font.family": "sans-serif",
-        "font.size": 10,
-        "axes.titlesize": 11,
-        "axes.labelsize": 10,
-        "xtick.labelsize": 9,
-        "ytick.labelsize": 9,
-        "legend.fontsize": 9,
-        "figure.dpi": 180,
+        "font.sans-serif": ["Helvetica", "Arial", "DejaVu Sans"],
+        "font.size": 8,
+        "axes.titlesize": 9,
+        "axes.labelsize": 8,
+        "xtick.labelsize": 7,
+        "ytick.labelsize": 7,
+        "legend.fontsize": 7,
+        "legend.frameon": False,
+        "xtick.major.width": 0.6,
+        "ytick.major.width": 0.6,
+        "xtick.major.size": 3,
+        "ytick.major.size": 3,
+        "xtick.direction": "out",
+        "ytick.direction": "out",
+        "figure.dpi": 300,
+        "savefig.dpi": 300,
+        "pdf.fonttype": 42,
+        "ps.fonttype": 42,
     })
 
 
@@ -60,6 +75,8 @@ def main():
                     help="Subtitle for fig 2 (e.g. 'base (20 epochs, Beta-NLL)')")
     ap.add_argument("--ts-file", type=str, default=None,
                     help="Path to .trees file for evaluation (auto-discovers if omitted)")
+    ap.add_argument("--use-tsinfer", action="store_true",
+                    help="Run tsinfer to get inferred topology for tree features")
     args = ap.parse_args()
 
     checkpoint = Path(args.checkpoint)
@@ -99,11 +116,14 @@ def main():
 
     device = "cuda:0" if __import__("torch").cuda.is_available() else "cpu"
     print(f"Running inference on {device} ...")
-    pred_means, pred_vars, idx_map = translate_from_ts(
-        ts, model,
+    translate_kwargs = dict(
         blocks=blocks, pivot_pairs=pivot_pairs,
-        mutation_rate=MUTATION_RATE,
-        device=device,
+        mutation_rate=MUTATION_RATE, device=device,
+    )
+    if args.use_tsinfer:
+        translate_kwargs["use_tsinfer"] = True
+    pred_means, pred_vars, idx_map = translate_from_ts(
+        ts, model, **translate_kwargs,
     )
 
     true_log = []
@@ -206,7 +226,7 @@ def main():
     resid = all_pred - all_true
     ax_res.scatter(
         np.tile(pos_mb, n_pairs), resid,
-        s=8, alpha=0.4, c=BLUE, edgecolors="none", rasterized=True,
+        s=14, alpha=0.45, c=BLUE, edgecolors="none", rasterized=True,
     )
     ax_res.axhline(0, color=GREY, ls="--", lw=0.8)
     ax_res.set_xlabel("Genomic position (Mb)")
