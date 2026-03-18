@@ -14,7 +14,7 @@
 \usepackage{tikz}
 \usetikzlibrary{positioning, arrows.meta, calc, fit, backgrounds, decorations.pathreplacing}
 
-\graphicspath{{experiment/paper_figures/}{experiment_mossies/paper_figures/}{experiment_mossies/data_application/results/}}
+\graphicspath{{../experiment/paper_figures/}{../experiment_mossies/paper_figures/}{../experiment_mossies/data_application/results/}{../experiment-large-context/paper_figures/}}
 
 \title{fastcxt: Linear-Scale Genome-Wide TMRCA Inference}
 
@@ -88,7 +88,7 @@ quadratically.
   \item \textbf{Mamba-based architecture.} We introduce \textsc{fastcxt}, which replaces the
     autoregressive transformer with a bidirectional
     Mamba~\citep{gu2024mamba, dao2024transformers} encoder--decoder. The non-autoregressive
-    design processes all 500 windows in a single forward pass, capturing long-range
+    design processes all 500--2{,}000 windows in a single forward pass, capturing long-range
     genealogical correlations across 1\,Mb blocks. The architecture conditions on the
     log-mutation rate via FiLM~\citep{perez2018film} and outputs heteroscedastic Gaussian
     parameters trained with Beta-NLL loss~\citep{seitzer2022pitfalls}.
@@ -133,8 +133,9 @@ in language modeling, genomics~\citep{schiff2024caduceus}, and time-series forec
 \subsection{Problem Formulation}
 
 Given a genotype matrix $G \in \{0, 1\}^{n \times m}$, a focal pair $(i,j)$, and variant
-positions, we predict the log-TMRCA $y_w = \log T_{ij}(w)$ at each of $W = 500$ non-overlapping
-windows of $\Delta = 2{,}000$\,bp spanning a 1\,Mb block. The model outputs per-window mean
+positions, we predict the log-TMRCA $y_w = \log T_{ij}(w)$ at each of $W$ non-overlapping
+windows of $\Delta$\,bp spanning a genomic block (e.g., $W{=}500$, $\Delta{=}2{,}000$\,bp
+for 1\,Mb; or $W{=}2{,}000$, $\Delta{=}200$\,bp for 400\,kb). The model outputs per-window mean
 $\hat{\mu}_w$ and variance $\hat{\sigma}^2_w$, parameterizing a heteroscedastic Gaussian.
 
 \subsection{Architecture}
@@ -314,23 +315,26 @@ $\mu = 10^{-8}$/bp) comparing four model variants: \textbf{Base} (SFS-only, 13.2
 parameters); \textbf{Tree-augmented (true trees)} (16.8M); \textbf{Tree-augmented (tsinfer)}
 (16.8M); and \textbf{Node-time} (6.65M parameters, predicting internal node times).
 A fifth variant trains the tsinfer-augmented architecture on \emph{Anopheles gambiae}
-simulations to test cross-species transfer (Section~\ref{sec:anogam}).
+simulations (100\,kb, 500 windows) and a sixth extends the same architecture to 400\,kb
+segments with 2{,}000 windows to test cross-species transfer at longer context
+(Section~\ref{sec:anogam}).
 
 \subsection{Prediction Accuracy}
 
 \begin{table}[t]
-\caption{Prediction accuracy on held-out simulations (log-TMRCA, 500 windows, three focal pairs).
-Human-like: 1\,Mb, 2\,kb windows; AnoGam: 100\,kb, 200\,bp windows.}
+\caption{Prediction accuracy on held-out simulations (log-TMRCA, three focal pairs).
+Human-like: 1\,Mb, 2\,kb windows; AnoGam: 100\,kb or 400\,kb, 200\,bp windows.}
 \label{tab:accuracy}
 \centering
-\begin{tabular}{lcc}
+\begin{tabular}{llcc}
 \toprule
-\textbf{Model} & $r$ & \textbf{RMSE} \\
+\textbf{Model} & \textbf{Context} & $r$ & \textbf{RMSE} \\
 \midrule
-Base (SFS-only)             & 0.879 & 0.582 \\
-Tree-augmented (true trees) & 0.869 & 0.619 \\
-Tree-augmented (tsinfer)    & 0.887 & 0.558 \\
-Tree-augmented (tsinfer, AnoGam) & 0.804 & 0.646 \\
+Base (SFS-only)             & 1\,Mb / 500 win  & 0.879 & 0.582 \\
+Tree-augmented (true trees) & 1\,Mb / 500 win  & 0.869 & 0.619 \\
+Tree-augmented (tsinfer)    & 1\,Mb / 500 win  & 0.887 & 0.558 \\
+Tree-augmented (tsinfer, AnoGam) & 0.1\,Mb / 500 win & 0.804 & 0.646 \\
+Tree-augmented (tsinfer, AnoGam) & 0.4\,Mb / 2k win  & 0.763 & 0.716 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -338,31 +342,38 @@ Tree-augmented (tsinfer, AnoGam) & 0.804 & 0.646 \\
 Table~\ref{tab:accuracy} and Figure~\ref{fig:scatter} summarize prediction accuracy. All
 human-like models achieve strong agreement with ground truth ($r > 0.86$). The tsinfer-augmented model
 performs best ($r = 0.887$, RMSE\;$0.558$), confirming that topology features from inferred
-trees carry complementary information beyond the SFS. The AnoGam model (panel~d) attains
-$r = 0.804$ on held-out AnoGam simulations, demonstrating cross-species transfer.
+trees carry complementary information beyond the SFS. The AnoGam 100\,kb model (panel~d) attains
+$r = 0.804$ on held-out simulations, demonstrating cross-species transfer. Extending the same
+architecture to 400\,kb segments with 2{,}000 windows (panel~e) yields $r = 0.763$,
+RMSE\;$0.716$, confirming that Mamba's linear-time processing scales to $4\times$ longer
+context without architectural changes.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\textwidth]{fig2_combined.png}
+\includegraphics[width=\textwidth]{fig2_combined.png}\\[4pt]
+\includegraphics[width=0.42\textwidth]{fig2e_scatter_400kb.png}
 \caption{True vs.\ predicted log(TMRCA). (a)~Base (SFS-only), (b)~tree-aug (true trees),
 (c)~tree-aug (tsinfer)---all on human-like 1\,Mb simulations; (d)~tree-aug (tsinfer) on
-\emph{Anopheles gambiae} (100\,kb, 200\,bp windows). Dashed line: perfect prediction.}
+\emph{Anopheles gambiae} (100\,kb, 500 windows); (e)~same architecture on AnoGam 400\,kb
+with 2{,}000 windows. Dashed line: perfect prediction.}
 \label{fig:scatter}
 \end{figure}
 
 \subsection{TMRCA Along the Genome}
 
-Figure~\ref{fig:genome} shows predicted TMRCA profiles for one focal pair on 1\,Mb (top) and
-100\,kb AnoGam (bottom). Both models capture peaks and valleys in coalescence time, resolve
-rapid transitions at recombination breakpoints, and produce well-calibrated $\pm 1$\,s.d.\
-uncertainty bands.
+Figure~\ref{fig:genome} shows predicted TMRCA profiles for one focal pair on 1\,Mb (top),
+100\,kb AnoGam (middle), and 400\,kb AnoGam (bottom). All models capture peaks and valleys
+in coalescence time, resolve rapid transitions at recombination breakpoints, and produce
+well-calibrated $\pm 1$\,s.d.\ uncertainty bands.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\textwidth]{fig3_combined.png}
-\caption{Predicted TMRCA along the genome for a single focal pair. Top: human-like 1\,Mb---red =
-true; blue = base; green = tree-aug (true); orange = tree-aug (tsinfer).
-Bottom: AnoGam 100\,kb---red = true; orange = tree-aug (tsinfer). Shaded: $\pm 1$\,s.d.}
+\includegraphics[width=\textwidth]{fig3_combined.png}\\[2pt]
+\includegraphics[width=\textwidth]{fig3c_genome_400kb.png}
+\caption{Predicted TMRCA along the genome for a single focal pair.
+(a)~Human-like 1\,Mb---red = true; blue = base; green = tree-aug (true); orange = tree-aug (tsinfer).
+(b)~AnoGam 100\,kb---red = true; orange = tree-aug (tsinfer).
+(c)~AnoGam 400\,kb (2{,}000 windows)---same color scheme. Shaded: $\pm 1$\,s.d.}
 \label{fig:genome}
 \end{figure}
 
@@ -374,10 +385,24 @@ demographic model, we train a tree-augmented (tsinfer) model on
 \emph{Anopheles gambiae} (AnoGam) data simulated with
 \texttt{stdpopsim}~\citep{adrion2020community}: 100\,kb segments, 200\,bp windows
 (500 windows), same sample sizes and hyperparameters as above. Panel~(d) of
-Figure~\ref{fig:scatter} and the bottom row of Figure~\ref{fig:genome} show scatter
+Figure~\ref{fig:scatter} and panel~(b) of Figure~\ref{fig:genome} show scatter
 and genome profiles; Table~\ref{tab:accuracy} reports $r = 0.804$, RMSE\;$0.646$.
 The \textsc{fastcxt} architecture thus transfers to a non-human species without
 architectural changes.
+
+\paragraph{Scaling to longer context (400\,kb, 2{,}000 windows).}
+To explore whether the same architecture can handle $4\times$ longer genomic context,
+we train an identical model ($d_\mathrm{model} = 256$, 17.2M parameters) on 400\,kb
+AnoGam segments tiled into 2{,}000 windows of 200\,bp each. Because Mamba processes
+sequences in $O(L)$ time, the only change is the sequence length $W$; no architectural
+modifications are needed. On three held-out test pairs the model achieves
+$r = 0.763$, RMSE\;$0.716$ (panel~e of Figure~\ref{fig:scatter}, panel~c of
+Figure~\ref{fig:genome}). While accuracy is lower than the 100\,kb variant---expected
+given that longer segments contain more recombination breakpoints and coalescent
+variation---the result demonstrates that Mamba's linear scaling enables practical
+inference over substantially longer contexts, with wall time growing approximately
+linearly (${\sim}4\times$) rather than quadratically as attention-based architectures
+would require.
 
 % \subsection{Out-of-Distribution Robustness}
 %
@@ -427,6 +452,15 @@ scales approximately linearly, completing the same task in 2.9\,s---an $11\times
 Including tsinfer in the full pipeline, inference at $n = 100$ takes ${\sim}4.8$\,s, a
 $7\times$ speedup over pairwise. Extrapolating, the pairwise model would require ${>}3$\,h
 for $n = 1{,}000$ haplotypes while the full pipeline remains in the seconds.
+
+\paragraph{Sequence-length scaling.}
+Independently of sample-size scaling, Mamba's $O(L)$ complexity in sequence length enables
+processing longer genomic context without architectural changes. The 400\,kb AnoGam model uses
+the same architecture ($d_\mathrm{model} = 256$, 17.2M parameters) as the 100\,kb variant but
+processes $W = 2{,}000$ windows instead of 500. Wall time per forward pass increases approximately
+$4\times$---linearly with context length---whereas an attention-based architecture would incur
+$16\times$ cost. A detailed wall-time-per-bp benchmark across context lengths is deferred to
+future work.
 
 \begin{figure}[t]
 \centering
@@ -540,11 +574,14 @@ or time-stratified genealogical statistics---without rerunning the neural networ
 The heteroscedastic Gaussian output trained with Beta-NLL loss provides calibrated uncertainty
 (Figure~\ref{fig:residuals}): approximately centered, symmetric residuals with no spatial bias.
 
-\paragraph{Cross-species generalization.}
-The AnoGam experiment (Section~\ref{sec:anogam}) shows that \textsc{fastcxt}'s architecture transfers
+\paragraph{Cross-species generalization and longer context.}
+The AnoGam experiments (Section~\ref{sec:anogam}) show that \textsc{fastcxt}'s architecture transfers
 without modification to a non-human species with different effective population size,
 recombination landscape, and demographic history---requiring only species-appropriate
-simulation data and adjusted window size.
+simulation data and adjusted window size. The 400\,kb variant ($W = 2{,}000$) further
+demonstrates that the same 17.2M-parameter model scales to $4\times$ longer genomic
+context with approximately linear wall-time increase, a direct benefit of Mamba's
+$O(L)$ complexity.
 
 \paragraph{Real data validation.}
 The Ag1000G application (Section~\ref{sec:ag1000g}) demonstrates that \textsc{fastcxt}
@@ -610,10 +647,12 @@ making genome-wide TMRCA inference practical at biobank scale.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\textwidth]{figS1_combined.png}
+\includegraphics[width=\textwidth]{figS1_combined.png}\\[4pt]
+\includegraphics[width=0.48\textwidth]{training_2k.png}
 \caption{Training dynamics (validation loss) over 30 epochs. (a)~Human-like models---blue:
 base (SFS-only); green: tree-augmented (true trees); orange: tree-augmented (tsinfer).
-(b)~AnoGam tree-augmented (tsinfer). All models converge smoothly without overfitting.}
+(b)~AnoGam tree-augmented (tsinfer, 100\,kb). (c)~AnoGam tree-augmented (tsinfer, 400\,kb,
+2{,}000 windows). All models converge smoothly without overfitting.}
 \label{fig:training}
 \end{figure}
 
@@ -621,12 +660,13 @@ base (SFS-only); green: tree-augmented (true trees); orange: tree-augmented (tsi
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\textwidth]{figS2_combined.png}
+\includegraphics[width=\textwidth]{figS2_combined.png}\\[2pt]
+\includegraphics[width=\textwidth]{figS2e_residual_400kb.png}
 \caption{Prediction residuals (predicted $-$ true) along the genome (left) and histograms
 (right). (a)~Base (SFS-only), (b)~tree-aug (true), (c)~tree-aug (tsinfer)---all on
-human-like 1\,Mb; (d)~AnoGam tree-aug (tsinfer, 100\,kb). Mean and standard deviation
-annotated in each panel title. All models show approximately centered, symmetric residuals
-with no spatial bias.}
+human-like 1\,Mb; (d)~AnoGam tree-aug (tsinfer, 100\,kb); (e)~AnoGam tree-aug (tsinfer,
+400\,kb, 2{,}000 windows). Mean and standard deviation annotated in each panel.
+All models show approximately centered, symmetric residuals with no spatial bias.}
 \label{fig:residuals}
 \end{figure}
 

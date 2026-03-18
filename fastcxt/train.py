@@ -16,6 +16,7 @@ import argparse
 import torch
 import torch.nn as nn
 import lightning as L
+from lightning.pytorch.loggers import CSVLogger
 from torch.utils.data import DataLoader
 
 import os
@@ -171,6 +172,8 @@ def main():
                     help="Dataset format: 'standard' (pre-computed SFS) or 'lazy' (on-the-fly SFS)")
     ap.add_argument("--no-compile", action="store_true",
                     help="Disable torch.compile")
+    ap.add_argument("--csv-log", action="store_true",
+                    help="Use CSV logger instead of TensorBoard")
     args = ap.parse_args()
 
     model_cfg = PRESETS[args.model].for_training(batch_size=args.batch_size)
@@ -248,6 +251,9 @@ def main():
     )
     if args.log_dir:
         trainer_kwargs["default_root_dir"] = args.log_dir
+    if args.csv_log:
+        log_dir = args.log_dir or "lightning_logs"
+        trainer_kwargs["logger"] = CSVLogger(save_dir=log_dir, name="csv_metrics")
 
     trainer = L.Trainer(**trainer_kwargs)
     trainer.fit(model=lit_model, train_dataloaders=train_loader,

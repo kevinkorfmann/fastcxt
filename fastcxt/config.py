@@ -63,7 +63,7 @@ PRESETS: dict[str, FastCxtConfig] = {
         use_trees=True, n_windows=4000, window_size=200,
     ),
     "base_trees_2k": FastCxtConfig(
-        d_model=128, n_enc_layers=6, n_dec_layers=4,
+        d_model=256, n_enc_layers=6, n_dec_layers=4,
         use_trees=True, n_windows=2000, window_size=200,
     ),
 }
