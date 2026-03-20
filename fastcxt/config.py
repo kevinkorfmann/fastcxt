@@ -66,6 +66,15 @@ PRESETS: dict[str, FastCxtConfig] = {
         d_model=256, n_enc_layers=6, n_dec_layers=4,
         use_trees=True, n_windows=2000, window_size=200,
     ),
+    "base_trees_5k": FastCxtConfig(
+        d_model=256, n_enc_layers=6, n_dec_layers=4,
+        use_trees=True, n_windows=5000, window_size=200,
+    ),
+    # Curriculum presets for whole-chromosome decoding (SFS-only, 2000 bp windows)
+    "base_25k": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, n_windows=25000, window_size=2000),
+    "base_50k": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, n_windows=50000, window_size=2000),
+    "base_75k": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, n_windows=75000, window_size=2000),
+    "base_125k": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, n_windows=125000, window_size=2000),
 }
 
 

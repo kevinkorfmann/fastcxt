@@ -16,6 +16,7 @@ import argparse
 import torch
 import torch.nn as nn
 import lightning as L
+from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from torch.utils.data import DataLoader
 
@@ -174,6 +175,10 @@ def main():
                     help="Disable torch.compile")
     ap.add_argument("--csv-log", action="store_true",
                     help="Use CSV logger instead of TensorBoard")
+    ap.add_argument("--save-every-epoch", action="store_true",
+                    help="Save a checkpoint after every epoch (save_top_k=-1)")
+    ap.add_argument("--early-stopping", action="store_true",
+                    help="Enable early stopping on val_loss (patience=20)")
     args = ap.parse_args()
 
     model_cfg = PRESETS[args.model].for_training(batch_size=args.batch_size)
@@ -233,6 +238,15 @@ def main():
             args.checkpoint, model_config=model_cfg,
             training_config=train_cfg.__dict__,
         )
+        # Extend pos_embed if resuming with a larger n_windows
+        old_n = lit_model.model.pos_embed.shape[1]
+        new_n = model_cfg.n_windows
+        if new_n > old_n:
+            print(f"Extending pos_embed from {old_n} to {new_n} windows")
+            old_embed = lit_model.model.pos_embed.data
+            tail = torch.zeros(1, new_n - old_n, old_embed.shape[2])
+            nn.init.trunc_normal_(tail, std=0.02)
+            lit_model.model.pos_embed = nn.Parameter(torch.cat([old_embed, tail], dim=1))
     else:
         lit_model = LitFastCxt(model_cfg, training_config=train_cfg.__dict__)
 
@@ -254,6 +268,16 @@ def main():
     if args.csv_log:
         log_dir = args.log_dir or "lightning_logs"
         trainer_kwargs["logger"] = CSVLogger(save_dir=log_dir, name="csv_metrics")
+    callbacks = []
+    if args.save_every_epoch:
+        callbacks.append(
+            ModelCheckpoint(save_top_k=-1, every_n_epochs=1, filename="{epoch}-{step}"),
+        )
+    if args.early_stopping:
+        from lightning.pytorch.callbacks import EarlyStopping
+        callbacks.append(EarlyStopping(monitor="val_loss", patience=20, mode="min", min_delta=1e-4))
+    if callbacks:
+        trainer_kwargs["callbacks"] = callbacks
 
     trainer = L.Trainer(**trainer_kwargs)
     trainer.fit(model=lit_model, train_dataloaders=train_loader,
