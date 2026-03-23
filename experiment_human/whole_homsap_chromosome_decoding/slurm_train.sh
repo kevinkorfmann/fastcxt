@@ -41,7 +41,7 @@ echo "CUDA_HOME=${CUDA_HOME:-not set}, nvcc: $(nvcc --version 2>&1 | tail -1)"
 # Install CUDA-dependent packages if missing (requires GPU node)
 if ! "$VENV_DIR/bin/python" -c "import mamba_ssm" 2>/dev/null; then
     echo "Installing mamba-ssm and causal-conv1d (requires CUDA)..."
-    uv pip install causal-conv1d mamba-ssm -e "$REPO_DIR[sim]" --cache-dir "$UV_CACHE_DIR"
+    uv pip install causal-conv1d mamba-ssm tsinfer -e "$REPO_DIR[sim,trees]" --cache-dir "$UV_CACHE_DIR"
     echo "Installation complete."
 fi
 
