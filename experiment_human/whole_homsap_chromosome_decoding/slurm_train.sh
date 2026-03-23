@@ -31,6 +31,8 @@ mkdir -p "$UV_CACHE_DIR" "$PIP_CACHE_DIR" "$TRITON_HOME" "$TORCHINDUCTOR_CACHE_D
 REPO_DIR="/vast/projects/smathi/cohort/kkor/fastcxt_repo"
 SCRIPT_DIR="$REPO_DIR/experiment_human/whole_homsap_chromosome_decoding"
 
+export VENV_DIR="/vast/projects/smathi/cohort/kkor/fastcxt_repo_old/.venv"
+
 TRAIN_ARGS=(--stage "$STAGE" --gpus "0 1 2 3")
 if [ -n "${CHECKPOINT:-}" ]; then
     TRAIN_ARGS+=(--checkpoint "$CHECKPOINT")

@@ -102,9 +102,8 @@ if [ -n "${CUDA_HOME:-}" ]; then
 fi
 
 # -- Activate venv -----------------------------------------------------------
-if [ -f "$REPO_DIR/.venv/bin/activate" ]; then
-    source "$REPO_DIR/.venv/bin/activate"
-fi
+VENV_DIR="${VENV_DIR:-$REPO_DIR/.venv}"
+export PATH="$VENV_DIR/bin:$PATH"
 
 mkdir -p "$LOG_DIR"
 
