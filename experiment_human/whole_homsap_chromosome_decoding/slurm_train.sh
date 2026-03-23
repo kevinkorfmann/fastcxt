@@ -48,7 +48,7 @@ fi
 # Auto-detect available GPUs from SLURM allocation
 NUM_GPUS="${SLURM_GPUS_ON_NODE:-1}"
 GPU_LIST=$(seq -s ' ' 0 $((NUM_GPUS - 1)))
-TRAIN_ARGS=(--stage "$STAGE" --gpus $GPU_LIST)
+TRAIN_ARGS=(--stage "$STAGE" --gpus "$GPU_LIST")
 if [ -n "${CHECKPOINT:-}" ]; then
     TRAIN_ARGS+=(--checkpoint "$CHECKPOINT")
 fi
