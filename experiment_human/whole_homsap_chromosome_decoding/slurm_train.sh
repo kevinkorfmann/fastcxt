@@ -33,6 +33,21 @@ SCRIPT_DIR="$REPO_DIR/experiment_human/whole_homsap_chromosome_decoding"
 
 export VENV_DIR="$REPO_DIR/.venv"
 
+# Auto-detect CUDA toolkit (needed for mamba-ssm build)
+if [ -z "${CUDA_HOME:-}" ]; then
+    for candidate in /usr/local/cuda /usr/local/cuda-12 /usr/local/cuda-12.*; do
+        if [ -x "${candidate}/bin/nvcc" ]; then
+            export CUDA_HOME="$candidate"
+            break
+        fi
+    done
+fi
+if [ -n "${CUDA_HOME:-}" ]; then
+    export PATH="$CUDA_HOME/bin:$PATH"
+    export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH:-}"
+    echo "CUDA_HOME=$CUDA_HOME (nvcc: $(nvcc --version | tail -1))"
+fi
+
 # Install CUDA-dependent packages if missing (requires GPU node)
 VENV_PYTHON="$VENV_DIR/bin/python"
 if ! "$VENV_PYTHON" -c "import mamba_ssm" 2>/dev/null; then
