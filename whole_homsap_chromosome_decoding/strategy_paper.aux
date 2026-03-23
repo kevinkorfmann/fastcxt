@@ -1,0 +1,43 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyperFirstAtBeginDocument{\AtBeginDocument}
+\HyperFirstAtBeginDocument{\ifx\hyper@anchor\@undefined
+\global\let\oldnewlabel\newlabel
+\gdef\newlabel#1#2{\newlabelxx{#1}#2}
+\gdef\newlabelxx#1#2#3#4#5#6{\oldnewlabel{#1}{{#2}{#3}}}
+\AtEndDocument{\ifx\hyper@anchor\@undefined
+\let\newlabel\oldnewlabel
+\fi}
+\fi}
+\global\let\hyper@last\relax 
+\gdef\HyperFirstAtBeginDocument#1{#1}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\@writefile{toc}{\contentsline {section}{\numberline {1}The Challenge: Chromosome-Scale Inference}{1}{section.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Human chromosome lengths and the sequence lengths covered by each curriculum stage. Stage\nobreakspace  {}4 (250\,Mb) covers the full extent of chr1.\relax }}{1}{figure.caption.1}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:chromosomes}{{1}{1}{Human chromosome lengths and the sequence lengths covered by each curriculum stage. Stage~4 (250\,Mb) covers the full extent of chr1.\relax }{figure.caption.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Architecture: Mamba Encoder--Decoder}{1}{section.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Model architecture. SFS features from each 2\,kb window are encoded by a multi-scale convolutional stem, combined with learnable positional embeddings, then processed by a Mamba encoder--decoder stack. The model outputs a Gaussian $(\mu , \log \sigma ^2)$ per window for TMRCA prediction.\relax }}{2}{figure.caption.2}\protected@file@percent }
+\newlabel{fig:architecture}{{2}{2}{Model architecture. SFS features from each 2\,kb window are encoded by a multi-scale convolutional stem, combined with learnable positional embeddings, then processed by a Mamba encoder--decoder stack. The model outputs a Gaussian $(\mu , \log \sigma ^2)$ per window for TMRCA prediction.\relax }{figure.caption.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{Key property: linear scaling.}{2}{section*.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Curriculum Learning Strategy}{2}{section.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Curriculum learning pipeline. Each stage trains until early stopping triggers (patience\,=\,20 on validation loss), then the checkpoint is used to initialize the next stage with extended positional embeddings. The trade-off between replicates and sequence length reflects simulation cost.\relax }}{2}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:curriculum}{{3}{2}{Curriculum learning pipeline. Each stage trains until early stopping triggers (patience\,=\,20 on validation loss), then the checkpoint is used to initialize the next stage with extended positional embeddings. The trade-off between replicates and sequence length reflects simulation cost.\relax }{figure.caption.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Curriculum stage configuration. All stages use sample sizes $n\in \{10, 25, 50, 100, 200\}$ (``$\times $5''), 2\,kb windows, batch size 4, gradient accumulation 64.\relax }}{2}{table.caption.5}\protected@file@percent }
+\newlabel{tab:stages}{{1}{2}{Curriculum stage configuration. All stages use sample sizes $n\in \{10, 25, 50, 100, 200\}$ (``$\times $5''), 2\,kb windows, batch size 4, gradient accumulation 64.\relax }{table.caption.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Positional Embedding Extension}{3}{section.4}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Positional embedding extension. Existing positions (blue) are preserved exactly from the checkpoint. New positions (orange) are initialized from a truncated normal distribution, matching the original initialization scheme. No interpolation is needed since positions represent fixed 2\,kb genomic intervals.\relax }}{3}{figure.caption.6}\protected@file@percent }
+\newlabel{fig:posembed}{{4}{3}{Positional embedding extension. Existing positions (blue) are preserved exactly from the checkpoint. New positions (orange) are initialized from a truncated normal distribution, matching the original initialization scheme. No interpolation is needed since positions represent fixed 2\,kb genomic intervals.\relax }{figure.caption.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Simulation Design}{3}{section.5}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Simulation design. Each replicate randomly draws a demographic model from the stdpopsim HomSap catalog, a random autosomal segment of the target length, and a random allocation of samples across populations. This produces diverse training data reflecting real human genetic variation.\relax }}{3}{figure.caption.7}\protected@file@percent }
+\newlabel{fig:simulation}{{5}{3}{Simulation design. Each replicate randomly draws a demographic model from the stdpopsim HomSap catalog, a random autosomal segment of the target length, and a random allocation of samples across populations. This produces diverse training data reflecting real human genetic variation.\relax }{figure.caption.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Training Configuration}{3}{section.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Training hyperparameters.}{3}{section*.9}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces SLURM execution pipeline. Simulation and training jobs alternate, connected by dependency chains. Each training job produces a checkpoint consumed by the next stage's training job.\relax }}{4}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:slurm}{{6}{4}{SLURM execution pipeline. Simulation and training jobs alternate, connected by dependency chains. Each training job produces a checkpoint consumed by the next stage's training job.\relax }{figure.caption.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Expected Outcomes}{4}{section.7}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {7}{\ignorespaces Schematic of expected output: per-window TMRCA prediction with calibrated uncertainty ($\hat  \mu \pm 1.96\hat  \sigma $) across an entire human chromosome. The model produces both point estimates and confidence intervals, enabling downstream inference of selection, introgression, and demographic history.\relax }}{4}{figure.caption.10}\protected@file@percent }
+\newlabel{fig:output}{{7}{4}{Schematic of expected output: per-window TMRCA prediction with calibrated uncertainty ($\hat \mu \pm 1.96\hat \sigma $) across an entire human chromosome. The model produces both point estimates and confidence intervals, enabling downstream inference of selection, introgression, and demographic history.\relax }{figure.caption.10}{}}
+\@writefile{toc}{\contentsline {paragraph}{Applications.}{4}{section*.11}\protected@file@percent }
+\gdef \@abspage@last{4}

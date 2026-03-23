@@ -1,0 +1,7 @@
+metric,value
+r,0.7985
+rmse,0.6506
+species,AnoGam
+seq_len,1000000
+window_size,200
+n_windows,5000

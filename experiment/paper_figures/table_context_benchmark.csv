@@ -1,0 +1,3 @@
+model,n_windows,seq_len_bp,window_size_bp,n_pairs,n_params,sfs_ms,sfs_std,tsinfer_ms,tsinfer_std,fwd_ms,fwd_std,total_ms,total_std
+100 kb (500 win),500,100000,200,3,16776258,77.8,7.5,1212.7,4.9,16.3,1.4,1306.8,13.4
+400 kb (2k win),2000,400000,200,3,17160258,142.9,17.2,5801.1,95.2,16.2,1.0,5960.2,93.4
