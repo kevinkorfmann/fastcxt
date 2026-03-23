@@ -41,7 +41,10 @@ if ! "$VENV_PYTHON" -c "import mamba_ssm" 2>/dev/null; then
     echo "Installation complete."
 fi
 
-TRAIN_ARGS=(--stage "$STAGE" --gpus "0 1 2 3")
+# Auto-detect available GPUs from SLURM allocation
+NUM_GPUS="${SLURM_GPUS_ON_NODE:-1}"
+GPU_LIST=$(seq -s ' ' 0 $((NUM_GPUS - 1)))
+TRAIN_ARGS=(--stage "$STAGE" --gpus $GPU_LIST)
 if [ -n "${CHECKPOINT:-}" ]; then
     TRAIN_ARGS+=(--checkpoint "$CHECKPOINT")
 fi
