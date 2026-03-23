@@ -17,7 +17,6 @@ from fastcxt.modules import (
     MultiScaleInputProjection,
     FiLMLayer,
     UncertaintyHead,
-    TreeEncoder,
 )
 
 
@@ -44,15 +43,6 @@ class FastCxtModel(nn.Module):
             kernel_sizes=config.kernel_sizes,
             dropout=config.dropout,
         )
-
-        # --- optional tree encoder ---
-        self.tree_encoder = None
-        if config.use_trees:
-            self.tree_encoder = TreeEncoder(
-                tree_feat_dim=config.tree_feat_dim,
-                d_model=d,
-                dropout=config.dropout,
-            )
 
         # --- encoder ---
         self.enc_blocks = nn.ModuleList([
@@ -98,14 +88,12 @@ class FastCxtModel(nn.Module):
         self,
         x: torch.Tensor,
         mutation_rate: torch.Tensor,
-        tree_feats: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """
         Parameters
         ----------
         x : (B, 2, W, N)  single-scale SFS (log1p-transformed)
         mutation_rate : (B, 1)  log mutation rate
-        tree_feats : (B, W, tree_feat_dim) optional tsinfer topology features
 
         Returns
         -------
@@ -114,9 +102,6 @@ class FastCxtModel(nn.Module):
         h = self.input_proj(x)                       # (B, W, D)
         W = h.shape[1]
         h = h + self.pos_embed[:, :W, :]
-
-        if self.tree_encoder is not None and tree_feats is not None:
-            h = h + self.tree_encoder(tree_feats)
 
         # --- encoder with FiLM conditioning at first/last layers ---
         enc_hiddens = []

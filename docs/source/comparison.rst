@@ -42,7 +42,7 @@ Architecture at a glance
      - ``InputProjection`` pads/truncates to ``max_samples``
    * - Tree topology
      - Not supported
-     - Optional ``TreeEncoder`` for O(n log n) scaling
+     - Not supported
    * - KV cache
      - Yes (for autoregressive decoding)
      - Not needed (single pass)

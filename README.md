@@ -206,7 +206,6 @@ Input                  Encoder                      Decoder            Output
 ─────                  ───────                      ───────            ──────
 SFS (2,W,N)  →  MultiScaleConvStem  →  [BiMamba + FiLM] ×6  →  [BiMamba + skip] ×4  →  (μ, log σ²)
 mutation rate  ──────────────────────→  FiLM (γ, β)
-tree topology  ──(optional)──→  TreeEncoder  →  add to embedding
 ```
 
 ## Cluster paths and data locations
@@ -258,7 +257,7 @@ fastcxt/
 ├── config.py        # FastCxtConfig, PRESETS, TrainingConfig
 ├── paths.py         # Centralized cluster/sietch path configuration
 ├── model.py         # FastCxtModel (bidirectional Mamba encoder-decoder)
-├── modules.py       # BiMambaBlock, MultiScaleInputProjection, FiLMLayer, UncertaintyHead, TreeEncoder
+├── modules.py       # BiMambaBlock, MultiScaleInputProjection, FiLMLayer, UncertaintyHead
 ├── sfs.py           # Single-scale SFS computation (multi-scale learned in model)
 ├── tree_utils.py    # Coalescence order extraction, LCA lookup
 ├── dataset.py       # PairDataset, TreeAugmentedPairDataset

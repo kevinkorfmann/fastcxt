@@ -4,7 +4,6 @@ BiMambaBlock              -- bidirectional Mamba (forward + backward + projectio
 MultiScaleInputProjection -- learned multi-scale SFS embedding via 1D convolutions
 FiLMLayer                 -- feature-wise linear modulation conditioned on mutation rate
 UncertaintyHead           -- regression head producing (mu, log_sigma2) per window
-TreeEncoder               -- encode tsinfer coalescence topology as per-window features
 """
 
 from __future__ import annotations
@@ -192,29 +191,3 @@ class UncertaintyHead(nn.Module):
         return torch.cat([self.mu_head(h), self.var_head(h)], dim=-1)
 
 
-# ---------------------------------------------------------------------------
-# Tree topology encoder
-# ---------------------------------------------------------------------------
-
-class TreeEncoder(nn.Module):
-    """Encode tsinfer coalescence-order topology as per-window features.
-
-    The tree topology is represented as a per-window tensor of coalescence
-    rank vectors: for each local tree (spanning one or more windows), we
-    store the sorted merge order of sample pairs.  This is a (B, W, tree_feat_dim)
-    tensor produced during preprocessing.
-
-    This module projects those features and adds them to the SFS embedding.
-    """
-
-    def __init__(self, tree_feat_dim: int, d_model: int, dropout: float = 0.1):
-        super().__init__()
-        self.proj = nn.Sequential(
-            nn.Linear(tree_feat_dim, d_model),
-            nn.GELU(),
-            nn.Dropout(dropout),
-        )
-
-    def forward(self, tree_feats: torch.Tensor) -> torch.Tensor:
-        """tree_feats: (B, W, tree_feat_dim) -> (B, W, d_model)"""
-        return self.proj(tree_feats)

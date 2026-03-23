@@ -38,7 +38,7 @@ The three modes
      - 1 forward pass (all windows at once)
      - Quadratic pair count at large n
    * - **fastcxt + tsinfer**
-     - Mamba encoder-decoder + TreeEncoder
+     - Mamba encoder-decoder
      - O(n)
      - 1 forward pass per node + O(n log n) LCA
      - Tree inference is the new bottleneck

@@ -5,12 +5,11 @@ Clean separation of concerns:
   - TMRCA target extraction (windowed span-averages)
   - Pair selection          (deterministic, reproducible)
   - Missing-data handling   (accessibility masks / bitmasks)
-  - Tree topology features  (optional, delegated to fastcxt.tree_utils)
   - Parallel I/O            (multiprocessing with dataclass job specs)
 
 Usage:
     python -m fastcxt.preprocess --base-dir ./sims --out-subdir processed
-    python -m fastcxt.preprocess --base-dir ./sims --extract-trees --accessibility-mask mask.npz
+    python -m fastcxt.preprocess --base-dir ./sims --accessibility-mask mask.npz
 """
 
 from __future__ import annotations
@@ -235,24 +234,9 @@ class PreprocessJob:
     global_seed: int
     skip_existing: bool
     simplify_n: int
-    extract_trees: bool
-    extract_tsinfer_trees: bool
-    max_internal: int
     mutation_rate_override: float | None
     accessibility_mask_path: str | None
     lazy_sfs: bool = False
-
-
-def _run_tsinfer(ts: tskit.TreeSequence) -> tskit.TreeSequence:
-    """Run tsinfer on a tree sequence to get an inferred topology.
-
-    Strips timing information from the ground truth and infers topology
-    from the genotype data alone, returning a tree sequence with
-    tsinfer-inferred trees.
-    """
-    import tsinfer
-    sd = tsinfer.SampleData.from_tree_sequence(ts, use_sites_time=False)
-    return tsinfer.infer(sd)
 
 
 def _run_job(job: PreprocessJob) -> str:
@@ -350,47 +334,6 @@ def _run_job(job: PreprocessJob) -> str:
         with open(out_dir / "meta.json", "w") as fp:
             json.dump(meta, fp, indent=2)
 
-        # Compute n_windows for tree extraction
-        if job.lazy_sfs:
-            n_win_tree = n_windows
-        else:
-            n_win_tree = X.shape[2]
-
-        if job.extract_trees:
-            try:
-                from fastcxt.tree_utils import extract_topology_features
-                max_internal = job.max_internal if job.max_internal > 0 else ts.num_samples - 1
-                tf = extract_topology_features(
-                    ts, n_windows=n_win_tree,
-                    window_size=job.window_size,
-                    max_internal=max_internal,
-                )
-                if job.lazy_sfs:
-                    np.save(out_dir / "tree_feats.npy", tf.astype(np.float32))
-                else:
-                    tf_all = np.tile(tf[np.newaxis], (len(pairs), 1, 1))
-                    np.save(out_dir / "tree_feats.npy", tf_all.astype(np.float32))
-            except Exception as e:
-                return f"[warn] tree extraction failed for {f}: {e}"
-
-        if job.extract_tsinfer_trees:
-            try:
-                from fastcxt.tree_utils import extract_topology_features
-                inferred_ts = _run_tsinfer(ts)
-                max_internal = job.max_internal if job.max_internal > 0 else ts.num_samples - 1
-                tf = extract_topology_features(
-                    inferred_ts, n_windows=n_win_tree,
-                    window_size=job.window_size,
-                    max_internal=max_internal,
-                )
-                if job.lazy_sfs:
-                    np.save(out_dir / "tree_feats.npy", tf.astype(np.float32))
-                else:
-                    tf_all = np.tile(tf[np.newaxis], (len(pairs), 1, 1))
-                    np.save(out_dir / "tree_feats.npy", tf_all.astype(np.float32))
-            except Exception as e:
-                return f"[warn] tsinfer tree extraction failed for {f}: {e}"
-
         return f"[ok] {job.split}/{scenario}/{short_id}  {status_shape}"
     except Exception as e:
         return f"[error] {f}: {e}"
@@ -417,12 +360,6 @@ def main():
     ap.add_argument("--global-seed", type=int, default=12345)
     ap.add_argument("--skip-existing", action="store_true")
     ap.add_argument("--num-workers", type=int, default=os.cpu_count() or 4)
-    ap.add_argument("--extract-trees", action="store_true",
-                    help="Extract ground-truth tree topology features")
-    ap.add_argument("--extract-tsinfer-trees", action="store_true",
-                    help="Run tsinfer and extract inferred tree topology features")
-    ap.add_argument("--max-samples", type=int, default=0,
-                    help="Pad tree features to this sample count (0 = use actual per-file)")
     ap.add_argument("--mutation-rate", type=float, default=None,
                     help="Override mutation rate (default: estimate from tree sequence)")
     ap.add_argument("--accessibility-mask", type=str, default=None,
@@ -458,9 +395,6 @@ def main():
             global_seed=args.global_seed,
             skip_existing=args.skip_existing,
             simplify_n=args.simplify_n,
-            extract_trees=args.extract_trees,
-            extract_tsinfer_trees=args.extract_tsinfer_trees,
-            max_internal=max(args.max_samples - 1, 0),
             mutation_rate_override=args.mutation_rate,
             accessibility_mask_path=args.accessibility_mask,
             lazy_sfs=args.lazy_sfs,

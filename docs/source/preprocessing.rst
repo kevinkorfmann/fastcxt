@@ -24,7 +24,6 @@ Pipeline overview
                y.npy           (P, W)            float16  log-TMRCA
                pairs.npy       (P, 2)            int32
                meta.json       { mutation_rate, num_samples, ... }
-               tree_feats.npy  (P, W, feat_dim)  float32  (optional)
 
 
 CLI usage
@@ -87,8 +86,7 @@ Output layout
    │   │   │   ├── X.npy           # (P, 2, W, n_samples) float16
    │   │   │   ├── y.npy           # (P, W) float16
    │   │   │   ├── pairs.npy       # (P, 2) int32
-   │   │   │   ├── meta.json
-   │   │   │   └── tree_feats.npy  # (P, W, feat_dim) float32 (optional)
+   │   │   │   └── meta.json
    │   │   └── ts_00000001_i1/
    │   │       └── ...
    │   ├── n50/

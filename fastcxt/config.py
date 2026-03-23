@@ -32,10 +32,6 @@ class FastCxtConfig:
     # Conditioning
     use_mutation_rate: bool = True
 
-    # Tree topology
-    use_trees: bool = False
-    tree_feat_dim: int = 995   # (max_samples - 1) * 5; auto-set by training CLI
-
     # Output
     output_dim: int = 2          # (mu, log_sigma2) per window
 
@@ -57,19 +53,6 @@ PRESETS: dict[str, FastCxtConfig] = {
     "small": FastCxtConfig(d_model=128, n_enc_layers=4, n_dec_layers=2),
     "base": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4),
     "large": FastCxtConfig(d_model=512, n_enc_layers=8, n_dec_layers=6),
-    "base_trees": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, use_trees=True),
-    "base_trees_4k": FastCxtConfig(
-        d_model=256, n_enc_layers=6, n_dec_layers=4,
-        use_trees=True, n_windows=4000, window_size=200,
-    ),
-    "base_trees_2k": FastCxtConfig(
-        d_model=256, n_enc_layers=6, n_dec_layers=4,
-        use_trees=True, n_windows=2000, window_size=200,
-    ),
-    "base_trees_5k": FastCxtConfig(
-        d_model=256, n_enc_layers=6, n_dec_layers=4,
-        use_trees=True, n_windows=5000, window_size=200,
-    ),
     # Curriculum presets for whole-chromosome decoding (SFS-only, 2000 bp windows)
     "base_25k": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, n_windows=25000, window_size=2000),
     "base_50k": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, n_windows=50000, window_size=2000),

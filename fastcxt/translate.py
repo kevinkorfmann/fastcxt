@@ -82,7 +82,6 @@ def predict(
     mutation_rate: float,
     batch_size: int = 128,
     device: str = "cuda",
-    tree_feats: torch.Tensor | None = None,
     progress: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Run single-pass inference on source tensors.
@@ -113,57 +112,13 @@ def predict(
             batch_src = src[start:end].to(device, non_blocking=True)
             batch_mu = log_mu.expand(end - start, -1)
 
-            batch_tree = None
-            if tree_feats is not None:
-                batch_tree = tree_feats[start:end].to(device, non_blocking=True)
-
-            out = model(batch_src, batch_mu, batch_tree)
+            out = model(batch_src, batch_mu)
             all_means.append(out[..., 0].cpu().numpy())
             all_vars.append(torch.exp(torch.clamp(out[..., 1], -10, 10)).cpu().numpy())
 
     means = np.concatenate(all_means, axis=0)
     variances = np.concatenate(all_vars, axis=0)
     return means, variances
-
-
-def _extract_tree_feats_for_blocks(
-    ts,
-    blocks: list[tuple],
-    pivot_pairs: list[tuple],
-    window_size: int = 2000,
-    use_tsinfer: bool = False,
-    tree_feat_dim: int | None = None,
-) -> np.ndarray:
-    """Extract tree topology features for each block, tiled per pair.
-
-    When *use_tsinfer* is True, runs tsinfer on the genotype data to obtain
-    an inferred topology instead of using the (ground-truth) trees in *ts*.
-
-    *tree_feat_dim*, when given, pads/truncates the feature vector to match
-    the model's expected input dimension.
-    """
-    from fastcxt.tree_utils import extract_topology_features, FEATS_PER_NODE
-
-    source_ts = ts
-    if use_tsinfer:
-        from fastcxt.preprocess import _run_tsinfer
-        source_ts = _run_tsinfer(ts)
-
-    if tree_feat_dim is not None:
-        max_internal = tree_feat_dim // FEATS_PER_NODE
-    else:
-        max_internal = ts.num_samples - 1
-
-    parts = []
-    for bstart, bend in blocks:
-        n_windows = (bend - bstart) // window_size
-        tf = extract_topology_features(
-            source_ts, n_windows=n_windows, window_size=window_size,
-            max_internal=max_internal,
-        )
-        tf_tiled = np.tile(tf[np.newaxis], (len(pivot_pairs), 1, 1))
-        parts.append(tf_tiled)
-    return np.concatenate(parts, axis=0).astype(np.float32)
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +136,6 @@ def translate_from_genotype_matrix(
     batch_size: int = 128,
     build_workers: int = 4,
     progress: bool = True,
-    tree_feats: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Infer pairwise TMRCA from a genotype matrix.
 
@@ -205,16 +159,9 @@ def translate_from_genotype_matrix(
     if torch.cuda.is_available():
         X_t = X_t.pin_memory()
 
-    tree_t = None
-    if tree_feats is not None:
-        tree_t = torch.as_tensor(tree_feats, dtype=param_dtype)
-        if torch.cuda.is_available():
-            tree_t = tree_t.pin_memory()
-
     means, variances = predict(
         model, X_t, mutation_rate=mutation_rate,
         batch_size=batch_size, device=device, progress=progress,
-        tree_feats=tree_t,
     )
 
     if torch.cuda.is_available():
@@ -225,31 +172,11 @@ def translate_from_genotype_matrix(
 
 
 def translate_from_ts(ts, model, **kwargs):
-    """Infer TMRCA from a tree sequence.
-
-    Pass *use_tsinfer=True* to run tsinfer on the genotype data and feed
-    inferred topology features to the model instead of ground-truth trees.
-    """
+    """Infer TMRCA from a tree sequence."""
     positions = ts.tables.sites.position
     gm = ts.genotype_matrix().T
-    tree_feats = kwargs.pop("tree_feats", None)
-    use_tsinfer = kwargs.pop("use_tsinfer", False)
-    if tree_feats is None and getattr(model, "tree_encoder", None) is not None:
-        tree_feat_dim = getattr(model.config, "tree_feat_dim", None)
-        blocks = kwargs.get("blocks", [(0, int(ts.sequence_length))])
-        a, b = blocks[0]
-        n_win = getattr(model, 'config', None) and model.config.n_windows or 500
-        window_size = int((b - a) / n_win)
-        tree_feats = _extract_tree_feats_for_blocks(
-            ts, blocks,
-            kwargs.get("pivot_pairs", [(0, 1)]),
-            window_size=window_size,
-            use_tsinfer=use_tsinfer,
-            tree_feat_dim=tree_feat_dim,
-        )
     return translate_from_genotype_matrix(
-        gm=gm, positions=positions, model=model,
-        tree_feats=tree_feats, **kwargs,
+        gm=gm, positions=positions, model=model, **kwargs,
     )
 
 

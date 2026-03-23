@@ -18,7 +18,6 @@ Overview
    MultiScaleConvStem   │   BiMambaBlock ──→ FiLM  ──┤    BiMambaBlock ──┤      per window
                         │   ...                      └──→ ...            ──┘
    Mutation rate ────────────────────────→ FiLM (γ, β)
-   Tree topology ──────(optional)──→ TreeEncoder ──→ add to embedding
 
 
 Bidirectional Mamba blocks
@@ -76,19 +75,3 @@ different kernel sizes extract multi-scale spatial patterns along the genome.
 Any sample size from 4 to ``max_samples`` works without architecture changes.
 
 
-Tree topology integration
--------------------------
-
-When the ``--use-trees`` flag is enabled:
-
-1. ``extract_topology_features`` extracts the coalescence order from each
-   local tree in the tree sequence (rank, left-child-hash, right-child-hash).
-2. ``TreeEncoder`` projects these into the model's latent dimension.
-3. The tree embedding is added to the SFS embedding before the encoder.
-
-The key insight: instead of predicting all n(n−1)/2 pairs independently,
-predict the O(n) internal node times. All pairwise TMRCAs are then O(log n)
-LCA lookups, giving O(n log n) total cost vs O(n²) without trees.
-
-See :doc:`scaling` for quantitative benchmarks comparing all three modes
-(cxt, fastcxt pairwise, fastcxt+tsinfer) across sample sizes.

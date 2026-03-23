@@ -5,7 +5,6 @@ No autoregressive generation.
 
 Usage:
     python -m fastcxt.train --model base --dataset-path /path/to/processed --gpus 0 1 2
-    python -m fastcxt.train --model base_trees --dataset-path /path/to/processed --gpus 0
 """
 
 from __future__ import annotations
@@ -20,26 +19,11 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from torch.utils.data import DataLoader
 
-import os
-import numpy as np
-from dataclasses import replace
 from fastcxt.config import PRESETS, FastCxtConfig, TrainingConfig
 from fastcxt.model import FastCxtModel
-from fastcxt.dataset import PairDataset, TreeAugmentedPairDataset, LazyPairDataset
+from fastcxt.dataset import PairDataset, LazyPairDataset
 
 torch.serialization.add_safe_globals([FastCxtConfig, TrainingConfig])
-
-
-def _detect_tree_feat_dim(dataset_path: str) -> int:
-    """Walk the dataset to find a tree_feats.npy and return its last dim."""
-    for dirpath, _, filenames in os.walk(dataset_path):
-        if "tree_feats.npy" in filenames:
-            tf = np.load(os.path.join(dirpath, "tree_feats.npy"), mmap_mode="r")
-            return tf.shape[-1]
-    raise FileNotFoundError(
-        f"No tree_feats.npy found under {dataset_path}. "
-        "Re-run preprocessing with --extract-trees."
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -92,18 +76,12 @@ class LitFastCxt(L.LightningModule):
         self.save_hyperparameters(ignore=["model"])
 
     def _forward(self, batch):
-        if len(batch) == 4:
-            x, y, mu_rate, tree_feats = batch
-        else:
-            x, y, mu_rate = batch
-            tree_feats = None
+        x, y, mu_rate = batch[:3]
         # Truncate to model's n_windows if data has more windows
         W = self.model_config.n_windows
         x = x[:, :, :W, :]
         y = y[:, :W]
-        if tree_feats is not None:
-            tree_feats = tree_feats[:, :W, :]
-        pred = self.model(x, mu_rate, tree_feats)
+        pred = self.model(x, mu_rate)
         return pred, y
 
     def training_step(self, batch, batch_idx):
@@ -184,23 +162,11 @@ def main():
     model_cfg = PRESETS[args.model].for_training(batch_size=args.batch_size)
 
     if args.dataset_mode == "lazy":
-        tree_feat_dim = _detect_tree_feat_dim(args.dataset_path) if model_cfg.use_trees else 597
-        if model_cfg.use_trees:
-            model_cfg = replace(model_cfg, tree_feat_dim=tree_feat_dim)
-            print(f"Tree feature dim: {tree_feat_dim}")
-        ds_kwargs = dict(
-            root=args.dataset_path, max_samples=model_cfg.max_samples,
-            use_trees=model_cfg.use_trees, tree_feat_dim=tree_feat_dim,
-        )
+        ds_kwargs = dict(root=args.dataset_path, max_samples=model_cfg.max_samples)
         DatasetCls = LazyPairDataset
     else:
-        DatasetCls = TreeAugmentedPairDataset if model_cfg.use_trees else PairDataset
+        DatasetCls = PairDataset
         ds_kwargs = dict(root=args.dataset_path, max_samples=model_cfg.max_samples)
-        if model_cfg.use_trees:
-            tree_feat_dim = _detect_tree_feat_dim(args.dataset_path)
-            ds_kwargs["tree_feat_dim"] = tree_feat_dim
-            model_cfg = replace(model_cfg, tree_feat_dim=tree_feat_dim)
-            print(f"Tree feature dim: {tree_feat_dim}")
 
     train_ds = DatasetCls(split="train", **ds_kwargs)
     test_ds = DatasetCls(split="test", **ds_kwargs)
