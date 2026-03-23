@@ -32,21 +32,23 @@ REPO_DIR="/vast/projects/smathi/cohort/kkor/fastcxt_repo"
 SCRIPT_DIR="$REPO_DIR/experiment_human/whole_homsap_chromosome_decoding"
 
 export VENV_DIR="$REPO_DIR/.venv"
+export PATH="$VENV_DIR/bin:$PATH"
 
 # Load CUDA toolkit via module system (needed for mamba-ssm build)
 module load cuda/12.8.1 2>/dev/null || true
 echo "CUDA_HOME=${CUDA_HOME:-not set}, nvcc: $(nvcc --version 2>&1 | tail -1)"
 
 # Install CUDA-dependent packages if missing (requires GPU node)
-VENV_PYTHON="$VENV_DIR/bin/python"
-if ! "$VENV_PYTHON" -c "import mamba_ssm" 2>/dev/null; then
+if ! "$VENV_DIR/bin/python" -c "import mamba_ssm" 2>/dev/null; then
     echo "Installing mamba-ssm and causal-conv1d (requires CUDA)..."
     uv pip install causal-conv1d mamba-ssm -e "$REPO_DIR[sim]" --cache-dir "$UV_CACHE_DIR"
     echo "Installation complete."
 fi
 
 # Auto-detect available GPUs from SLURM allocation
-NUM_GPUS="${SLURM_GPUS_ON_NODE:-1}"
+NUM_GPUS="${SLURM_GPUS_ON_NODE:-${SLURM_STEP_GPUS:-1}}"
+# For MIG partitions SLURM_GPUS_ON_NODE may not be set — default to 1
+[ "$NUM_GPUS" -gt 0 ] 2>/dev/null || NUM_GPUS=1
 GPU_LIST=$(seq -s ' ' 0 $((NUM_GPUS - 1)))
 TRAIN_ARGS=(--stage "$STAGE" --gpus "$GPU_LIST")
 if [ -n "${CHECKPOINT:-}" ]; then
