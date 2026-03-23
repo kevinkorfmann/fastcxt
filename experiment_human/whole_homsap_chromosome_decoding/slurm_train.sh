@@ -28,7 +28,7 @@ export XDG_CACHE_HOME="$CACHE_BASE/xdg"
 mkdir -p "$UV_CACHE_DIR" "$PIP_CACHE_DIR" "$TRITON_HOME" "$TORCHINDUCTOR_CACHE_DIR" "$HF_HOME" "$XDG_CACHE_HOME"
 
 # Hardcoded paths (BASH_SOURCE is unreliable in SLURM spool)
-REPO_DIR="/vast/projects/smathi/cohort/fastcxt_repo"
+REPO_DIR="/vast/projects/smathi/cohort/kkor/fastcxt_repo"
 SCRIPT_DIR="$REPO_DIR/experiment_human/whole_homsap_chromosome_decoding"
 
 TRAIN_ARGS=(--stage "$STAGE" --gpus "0 1 2 3")
