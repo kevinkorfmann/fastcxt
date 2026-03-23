@@ -8,7 +8,7 @@ set -euo pipefail
 # ============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(dirname "$SCRIPT_DIR")"
+REPO_DIR="${REPO_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 WORK_DIR="/vast/projects/smathi/cohort/kkor/homsap_curriculum"
 
 GPUS="0"
@@ -74,9 +74,14 @@ echo "  Checkpoint: ${CHECKPOINT:-none (training from scratch)}"
 echo "========================================================================"
 
 # -- Redirect caches to project storage (home quota is full) ----------------
-export TRITON_CACHE_DIR="$WORK_DIR/.triton_cache"
-export XDG_CACHE_HOME="$WORK_DIR/.cache"
-mkdir -p "$TRITON_CACHE_DIR" "$XDG_CACHE_HOME"
+CACHE_BASE="$WORK_DIR/.cache"
+export UV_CACHE_DIR="$CACHE_BASE/uv"
+export PIP_CACHE_DIR="$CACHE_BASE/pip"
+export TRITON_HOME="$CACHE_BASE/triton_home"
+export TORCHINDUCTOR_CACHE_DIR="$CACHE_BASE/inductor"
+export HF_HOME="$CACHE_BASE/hf"
+export XDG_CACHE_HOME="$CACHE_BASE/xdg"
+mkdir -p "$UV_CACHE_DIR" "$PIP_CACHE_DIR" "$TRITON_HOME" "$TORCHINDUCTOR_CACHE_DIR" "$HF_HOME" "$XDG_CACHE_HOME"
 
 # -- Auto-detect CUDA toolkit -----------------------------------------------
 if [ -z "${CUDA_HOME:-}" ]; then
