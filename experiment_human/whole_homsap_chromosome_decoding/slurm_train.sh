@@ -31,7 +31,15 @@ mkdir -p "$UV_CACHE_DIR" "$PIP_CACHE_DIR" "$TRITON_HOME" "$TORCHINDUCTOR_CACHE_D
 REPO_DIR="/vast/projects/smathi/cohort/kkor/fastcxt_repo"
 SCRIPT_DIR="$REPO_DIR/experiment_human/whole_homsap_chromosome_decoding"
 
-export VENV_DIR="/vast/projects/smathi/cohort/kkor/fastcxt_repo_old/.venv"
+export VENV_DIR="$REPO_DIR/.venv"
+
+# Install CUDA-dependent packages if missing (requires GPU node)
+VENV_PYTHON="$VENV_DIR/bin/python"
+if ! "$VENV_PYTHON" -c "import mamba_ssm" 2>/dev/null; then
+    echo "Installing mamba-ssm and causal-conv1d (requires CUDA)..."
+    uv pip install causal-conv1d mamba-ssm -e "$REPO_DIR[sim]" --cache-dir "$UV_CACHE_DIR"
+    echo "Installation complete."
+fi
 
 TRAIN_ARGS=(--stage "$STAGE" --gpus "0 1 2 3")
 if [ -n "${CHECKPOINT:-}" ]; then
