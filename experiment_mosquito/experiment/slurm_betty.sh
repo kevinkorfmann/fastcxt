@@ -19,6 +19,10 @@ export XDG_CACHE_HOME="$CACHE_BASE/xdg"
 mkdir -p "$UV_CACHE_DIR" "$PIP_CACHE_DIR" "$TRITON_HOME" "$TORCHINDUCTOR_CACHE_DIR" "$HF_HOME" "$XDG_CACHE_HOME"
 
 module load cuda/12.8.1 2>/dev/null || true
+# Ensure CUDA libraries are on LD_LIBRARY_PATH (module load doesn't always propagate)
+CUDA_HOME="${CUDA_HOME:-/vast/parcc/spack/sw/apps/linux-sapphirerapids/cuda-12.8.1-lmm74gnqr2pl2dzbtfjdwoo3fnwbar43}"
+export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH:-}"
+echo "CUDA_HOME=${CUDA_HOME}, LD_LIBRARY_PATH includes: ${CUDA_HOME}/lib64"
 
 REPO_DIR="/vast/projects/smathi/cohort/kkor/fastcxt_repo"
 VENV_DIR="$REPO_DIR/.venv"
