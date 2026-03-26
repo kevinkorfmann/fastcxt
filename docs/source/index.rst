@@ -12,6 +12,12 @@ fastcxt
      </p>
    </div>
 
+.. admonition:: Under active development
+   :class: warning
+
+   APIs, documentation, and results may change without notice. Not yet
+   recommended for production use.
+
 fastcxt predicts pairwise time to most recent common ancestor (TMRCA) from
 genotype data using a **bidirectional Mamba encoder-decoder**. It replaces the
 autoregressive transformer from `cxt <https://github.com/kevinkorfmann/cxt>`_

@@ -5,6 +5,8 @@
 [![Documentation](https://readthedocs.org/projects/fastcxt/badge/?version=latest)](https://fastcxt.readthedocs.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+> **Under active development.** APIs, documentation, and results may change without notice. Not yet recommended for production use.
+
 fastcxt predicts pairwise time to most recent common ancestor (TMRCA) from genotype data using a **bidirectional Mamba encoder-decoder**. It replaces the autoregressive transformer from [cxt](https://github.com/kevinkorfmann/cxt) with a single-pass architecture that produces means and calibrated variances for all genomic windows in one forward pass.
 
 **[Documentation](https://fastcxt.readthedocs.io)** | **[Figure Gallery](https://fastcxt.readthedocs.io/en/latest/gallery.html)** | **[API Reference](https://fastcxt.readthedocs.io/en/latest/api/index.html)**
