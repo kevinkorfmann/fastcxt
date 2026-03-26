@@ -42,7 +42,13 @@ Architecture at a glance
      - ``InputProjection`` pads/truncates to ``max_samples``
    * - Tree topology
      - Not supported
-     - Not supported
+     - Not supported (pairwise mode); supported via ``HybridNodeTimeModel`` (node mode)
+   * - Node time model
+     - Not available
+     - ``HybridNodeTimeModel``: predicts all internal node times in one pass; pairwise TMRCA via O(log n) LCA lookup
+   * - tsinfer integration
+     - Not available
+     - Can use `tsinfer <https://tskit.dev/tsinfer/>`_ to infer tree topology from genotype data, then predict node times — reduces O(n²) pair passes to O(n) node passes
    * - KV cache
      - Yes (for autoregressive decoding)
      - Not needed (single pass)
