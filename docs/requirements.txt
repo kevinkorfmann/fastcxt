@@ -1,2 +1,6 @@
-sphinx>=8.2.3
+sphinx>=7.0
 furo
+sphinx-autodoc-typehints
+sphinx-copybutton
+sphinx-design
+myst-parser

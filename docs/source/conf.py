@@ -10,10 +10,21 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
-    "sphinx_autodoc_typehints",
     "sphinx_copybutton",
     "sphinx_design",
     "myst_parser",
+]
+
+# sphinx_autodoc_typehints needs the package importable; skip on RTD
+import os
+if not os.environ.get("READTHEDOCS"):
+    extensions.append("sphinx_autodoc_typehints")
+
+# Mock CUDA-only imports so autodoc doesn't fail on RTD
+autodoc_mock_imports = [
+    "torch", "mamba_ssm", "causal_conv1d", "lightning",
+    "einops", "tskit", "msprime", "tsinfer", "stdpopsim",
+    "scipy", "tqdm",
 ]
 
 templates_path = ["_templates"]
