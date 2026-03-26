@@ -1,104 +1,135 @@
 fastcxt
 =======
 
-**Fast pairwise coalescence time inference with Mamba state-space models.**
+.. raw:: html
+
+   <div style="background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%); border-radius: 12px; padding: 2.5rem; margin-bottom: 2rem; border: 1px solid #334155; text-align: center;">
+     <p style="color: #94a3b8; font-size: 1.15rem; margin-top: 0.5rem;">
+       Fast pairwise coalescence time inference with Mamba state-space models
+     </p>
+     <p style="color: #64748b; font-size: 0.9rem;">
+       Single-pass · Built-in uncertainty · Mutation-rate conditioned · O(n) with tree topology
+     </p>
+   </div>
 
 fastcxt predicts pairwise time to most recent common ancestor (TMRCA) from
-genotype data using a bidirectional Mamba encoder-decoder. It replaces the
-autoregressive transformer from cxt with a single-pass architecture that
-produces means and calibrated variances for all genomic windows in one
-forward pass — no stochastic sampling, no post-hoc correction.
-
-.. image:: ../../figures/07_composite_dashboard.png
-   :width: 100%
-   :alt: fastcxt TimeAtlas dashboard
-
-*Composite dashboard with geographic context, TMRCA landscapes, population
-heatmap, uncertainty, and per-arm summary statistics (simulated Ag1000G data).*
+genotype data using a **bidirectional Mamba encoder-decoder**. It replaces the
+autoregressive transformer from `cxt <https://github.com/kevinkorfmann/cxt>`_
+with a single-pass architecture that produces means and calibrated variances
+for all genomic windows in one forward pass — no stochastic sampling, no
+post-hoc correction.
 
 
-.. grid:: 2
+.. grid:: 3
    :gutter: 3
 
-   .. grid-item-card:: Getting Started
+   .. grid-item-card:: Quick Start
       :link: quickstart
       :link-type: doc
 
-      Installation, first simulation, and inference in five minutes.
+      Install and run inference in five minutes.
 
-   .. grid-item-card:: End-to-End Tutorial
+   .. grid-item-card:: Tutorial
       :link: tutorial
       :link-type: doc
 
-      Full walkthrough from simulation → preprocessing → training →
-      inference → TimeAtlas → visualization.
+      Full pipeline: simulate, train, infer, visualize.
+
+   .. grid-item-card:: Algorithm
+      :link: architecture
+      :link-type: doc
+
+      Bidirectional Mamba, FiLM conditioning, Beta-NLL loss.
+
+.. grid:: 3
+   :gutter: 3
 
    .. grid-item-card:: cxt vs fastcxt
       :link: comparison
       :link-type: doc
 
-      Detailed comparison of the old transformer and new Mamba
-      architecture, with migration guide.
-
-   .. grid-item-card:: Architecture
-      :link: architecture
-      :link-type: doc
-
-      How the bidirectional Mamba encoder-decoder works, FiLM conditioning,
-      and Gaussian NLL loss.
+      Architecture comparison and migration guide.
 
    .. grid-item-card:: Mosquito Protocol
       :link: mosquito_protocol
       :link-type: doc
 
-      *Anopheles gambiae* analysis at scale with accessibility mask support
-      for missing data.
+      Ag1000G analysis: inversions, karyotypes, selection scans.
 
-   .. grid-item-card:: TimeAtlas
-      :link: time_atlas
+   .. grid-item-card:: Figure Gallery
+      :link: gallery
       :link-type: doc
 
-      Purpose-built data structure for genome-wide TMRCA storage, queries,
-      and analytics.
+      Publication-quality plots from the Ag1000G analysis.
 
-   .. grid-item-card:: Scaling & Benchmarks
-      :link: scaling
+.. grid:: 3
+   :gutter: 3
+
+   .. grid-item-card:: Demography
+      :link: demography
       :link-type: doc
 
-      Runtime comparison of cxt vs fastcxt vs fastcxt+tsinfer across
-      sample sizes, with instructions for running benchmarks.
+      IICR estimation and Ne(t) from TMRCA distributions.
 
-   .. grid-item-card:: Visualization
+   .. grid-item-card:: Geographic
       :link: visualization
       :link-type: doc
 
-      Publication-quality geographic maps, TMRCA landscapes, sweep panels,
-      connectivity arcs, and composite dashboards.
+      Maps, sparklines, and spatial TMRCA patterns.
 
    .. grid-item-card:: API Reference
       :link: api/index
       :link-type: doc
 
-      Full Python API documentation for all modules.
+      Full Python API for all modules.
 
 
-Key features
+How it works
 ------------
 
-- **Single-pass inference**: one forward pass per pair produces means and
-  variances for all genomic windows — no autoregressive sampling.
-- **Built-in uncertainty**: Gaussian NLL loss directly models prediction
-  variance alongside the mean.
-- **Mutation-rate conditioning**: FiLM layers inject mutation rate as a
-  model input, replacing post-hoc correction.
-- **Variable sample sizes**: ``InputProjection`` handles any sample count
-  up to ``max_samples`` without adapter modules.
-- **Tree topology integration**: optional ``--use-trees`` flag exploits
-  tsinfer coalescence order for O(n log n) scaling.
-- **TimeAtlas**: purpose-built data structure for storing and querying
-  at-scale TMRCA predictions across entire genomes.
-- **Geographic visualization**: Cartopy-powered maps, TMRCA landscapes,
-  connectivity arcs, sweep panels, and composite dashboards.
+.. raw:: html
+
+   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1.5rem 0;">
+     <div style="border-left: 3px solid #60a5fa; padding-left: 1rem;">
+       <strong style="color: #60a5fa;">1. Build SFS features</strong><br/>
+       <span style="color: #94a3b8;">Site frequency spectrum in XOR/XNOR channels from a genotype matrix — same representation as cxt.</span>
+     </div>
+     <div style="border-left: 3px solid #60a5fa; padding-left: 1rem;">
+       <strong style="color: #60a5fa;">2. Single forward pass</strong><br/>
+       <span style="color: #94a3b8;">Bidirectional Mamba encoder reads the full sequence, decoder outputs (μ, log σ²) for every window.</span>
+     </div>
+     <div style="border-left: 3px solid #60a5fa; padding-left: 1rem;">
+       <strong style="color: #60a5fa;">3. FiLM conditioning</strong><br/>
+       <span style="color: #94a3b8;">Mutation rate injected via learned scale/shift at each encoder layer — no post-hoc correction needed.</span>
+     </div>
+     <div style="border-left: 3px solid #60a5fa; padding-left: 1rem;">
+       <strong style="color: #60a5fa;">4. Calibrated uncertainty</strong><br/>
+       <span style="color: #94a3b8;">Beta-NLL loss directly models variance alongside the mean — 95% CI = exp(μ ± 1.96√σ²).</span>
+     </div>
+   </div>
+
+
+Minimal example
+---------------
+
+.. code-block:: python
+
+   import tskit
+   from fastcxt.translate import translate_from_genotype_matrix
+
+   ts = tskit.load("data.trees")
+   gm = ts.genotype_matrix().T
+   positions = ts.tables.sites.position
+
+   pairs = [(0, 1), (0, 2), (1, 2)]
+   blocks = [(i, i + 100_000) for i in range(0, 1_000_000, 100_000)]
+
+   means, variances, index_map = translate_from_genotype_matrix(
+       gm, positions, model,
+       blocks=blocks, pivot_pairs=pairs,
+       mutation_rate=3.5e-9, device="cuda:0",
+       batch_size=128, build_workers=64,
+   )
 
 
 .. toctree::
@@ -121,9 +152,11 @@ Key features
    :hidden:
 
    mosquito_protocol
+   demography
    time_atlas
    scaling
    visualization
+   gallery
 
 .. toctree::
    :maxdepth: 2

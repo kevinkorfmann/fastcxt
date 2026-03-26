@@ -34,17 +34,22 @@ def _build_sources(
     workers: int = 4,
     progress: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Build SFS source tensors for all (block, pair) combinations."""
+    """Build SFS source tensors for all (block, pair) combinations.
+
+    Pre-slices the genotype matrix per block so each task only pickles
+    the small block slice rather than the full matrix.
+    """
     gm_filt, pos_filt = basic_filtering(gm, positions)
+
+    # Pre-slice per block — each block's gm/pos is small and cheap to pickle
+    block_data = []
+    for bstart, bend in blocks:
+        mask = (pos_filt >= bstart) & (pos_filt < bend)
+        block_data.append((gm_filt[:, mask], pos_filt[mask] - bstart, float(bend - bstart)))
 
     tasks = []
     index_map = []
-    for b_idx, (bstart, bend) in enumerate(blocks):
-        seq_len = float(bend - bstart)
-        mask = (pos_filt >= bstart) & (pos_filt < bend)
-        bpos = pos_filt[mask] - bstart
-        bgm = gm_filt[:, mask]
-
+    for b_idx, (bgm, bpos, seq_len) in enumerate(block_data):
         for p_idx, (pA, pB) in enumerate(pivot_pairs):
             tasks.append(dict(
                 gm=bgm, positions=bpos, pivot_a=pA, pivot_b=pB,

@@ -1,0 +1,120 @@
+/* fastcxt dark theme overrides */
+
+/* Hero section */
+.hero-section {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    border: 1px solid #334155;
+}
+
+/* Card hover effects */
+.sd-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid #334155 !important;
+    background: #1e293b !important;
+}
+.sd-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    border-color: #60a5fa !important;
+}
+
+/* Gallery grid */
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin: 1.5rem 0;
+}
+.gallery-item {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.gallery-item:hover {
+    transform: translateY(-2px);
+    border-color: #60a5fa;
+}
+.gallery-item img {
+    width: 100%;
+    display: block;
+}
+.gallery-item .caption {
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+    color: #94a3b8;
+}
+
+/* Pending placeholder */
+.pending-badge {
+    display: inline-block;
+    background: #334155;
+    color: #64748b;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+/* Comparison table styling */
+table.comparison-table th {
+    background: #1e293b !important;
+    color: #60a5fa !important;
+    border-bottom: 2px solid #60a5fa !important;
+}
+table.comparison-table td {
+    border-color: #334155 !important;
+}
+
+/* Code blocks */
+pre {
+    border: 1px solid #334155 !important;
+    border-radius: 8px !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #0f172a;
+}
+::-webkit-scrollbar-thumb {
+    background: #475569;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+/* Section headers */
+h1, h2, h3, h4 {
+    color: #e2e8f0 !important;
+}
+
+/* Admonitions */
+.admonition {
+    border-radius: 8px !important;
+    border-left: 4px solid #60a5fa !important;
+}
+
+/* Status badges */
+.status-done {
+    color: #4ade80;
+    font-weight: bold;
+}
+.status-pending {
+    color: #64748b;
+    font-style: italic;
+}
+
+/* Feature grid on landing */
+.feature-highlight {
+    border-left: 3px solid #60a5fa;
+    padding-left: 1rem;
+    margin: 0.5rem 0;
+}

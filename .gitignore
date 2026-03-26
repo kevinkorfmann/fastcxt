@@ -39,9 +39,8 @@ sims/
 *.ckpt
 *.npz
 
-# Paper build artifacts
-paper/tectonic
-paper/paper.pdf
+# Paper (private)
+paper/
 
 # Conversation log
 docs/build_conversation.md

@@ -1,22 +1,18 @@
 #!/usr/bin/env python3
-"""Run pairwise TMRCA inference on real Ag1000G data for a population.
+"""Run comprehensive TMRCA inference on Ag1000G data.
 
-Loads a trained fastcxt model and runs inference on all pairs of individuals
-from a specified population across all chromosome arms. Results are saved
-as compressed numpy arrays with full metadata for downstream analysis.
+For each population and chromosome arm, groups individuals by karyotype
+(for arms with inversions: hom_standard, heterozygous, hom_inverted;
+for others: all individuals), then runs both intra-individual and
+inter-individual (capped at 100) pairs.
+
+Output structure:
+    out_dir/<population>/<arm>/<karyotype>_intra/
+    out_dir/<population>/<arm>/<karyotype>_inter/
 
 Usage:
-    # Burkina Faso (default)
-    python run_inference.py --out-dir /sietch_colab/kkor/fastcxt/results/burkina_faso
-
-    # Different population
-    python run_inference.py --out-dir ./results/uganda --population Uganda
-
-    # Subset of pairs (first 100)
-    python run_inference.py --out-dir ./results/bf_test --max-pairs 100
-
-    # Single arm
-    python run_inference.py --out-dir ./results/bf_2L --arms 2L
+    python run_inference.py --out-dir /sietch_colab/kkor/fastcxt/results/comprehensive
+    python run_inference.py --out-dir ./test --populations "Burkina Faso" --arms 2L
 """
 
 from __future__ import annotations
@@ -36,28 +32,31 @@ import tskit
 from fastcxt.config import FastCxtConfig, TrainingConfig
 from fastcxt.train import LitFastCxt
 from fastcxt.translate import translate_from_genotype_matrix
-from fastcxt.mosquito import (
-    ANOGAM_CHROMOSOME_ARMS,
-    AccessibilityMask,
-    generate_blocks,
-)
 
 torch.serialization.add_safe_globals([FastCxtConfig, TrainingConfig])
 
-# ---------------------------------------------------------------------------
-# Defaults (sietch paths)
-# ---------------------------------------------------------------------------
-
 ARMS = ["2L", "2R", "3L", "3R", "X"]
 MUTATION_RATE = 3.5e-9
-BLOCK_SIZE = 1_000_000  # 1 Mb blocks
+BLOCK_SIZE = 100_000
+MAX_INTER_PAIRS = 100
+MAX_INDIVIDUALS = 50
+
+# Inversion karyotype column per arm; arms not listed use all individuals
+ARM_INVERSION = {
+    "2L": "2La",
+    "2R": "2Rb",
+}
+
+# Karyotype groups for arms with inversions
+KARYO_GROUPS = [
+    (0, "hom_standard"),
+    (1, "heterozygous"),
+    (2, "hom_inverted"),
+]
 
 DEFAULT_TREES_DIR = "/sietch_colab/data_share/Ag1000G/Ag3.0/args_trees/tsinfer_data_v2"
 DEFAULT_METADATA = "/sietch_colab/data_share/Ag1000G/Ag3.0/args_trees/gamb.meta.tsinfer.csv"
-DEFAULT_ACCESSIBILITY = "/sietch_colab/data_share/Ag1000G/Ag3.0/vcf/agp3.is_accessible.txt.npz"
 DEFAULT_CHECKPOINT = "/sietch_colab/kkor/fastcxt/experiment_mosquito/experiment/outputs/pairwise/csv_metrics/version_1/checkpoints/epoch=29-step=20880.ckpt"
-
-# Tree file naming pattern
 TREE_PATTERN = "gamb.{arm}.gff.dated.ne.trees"
 
 logging.basicConfig(
@@ -68,12 +67,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Model loading
-# ---------------------------------------------------------------------------
-
 def load_model(checkpoint_path: str):
-    """Load pairwise FastCxtModel from checkpoint."""
     ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     ckpt["state_dict"] = {
         k.replace("._orig_mod", ""): v for k, v in ckpt["state_dict"].items()
@@ -82,283 +76,271 @@ def load_model(checkpoint_path: str):
     lit.load_state_dict(ckpt["state_dict"])
     model = lit.model.eval()
     cfg = ckpt["hyper_parameters"]["model_config"]
-    log.info("Loaded model: %s, window_size=%d, n_windows=%d",
-             checkpoint_path, cfg.window_size, cfg.n_windows)
+    log.info("Model: window_size=%d, n_windows=%d", cfg.window_size, cfg.n_windows)
     return model, cfg
 
 
-# ---------------------------------------------------------------------------
-# Population setup
-# ---------------------------------------------------------------------------
-
-def get_population_pairs(
-    metadata_path: str,
-    ts: tskit.TreeSequence,
-    population: str,
-    max_pairs: int | None = None,
-) -> tuple[pd.DataFrame, list[tuple[int, int]], list[tuple[str, str]]]:
-    """Get all haploid pairs for a population.
-
-    Returns
-    -------
-    pop_meta : DataFrame of individuals in the population
-    haploid_pairs : list of (hap_idx_a, hap_idx_b) for model input
-    individual_pairs : list of (sample_id_a, sample_id_b) for metadata
-    """
-    meta = pd.read_csv(metadata_path)
-    pop = meta[meta["country"] == population].copy()
-    if len(pop) == 0:
-        raise ValueError(f"No samples found for population '{population}'. "
-                         f"Available: {meta['country'].unique().tolist()}")
-
-    log.info("Population '%s': %d individuals (%d haplotypes)",
-             population, len(pop), len(pop) * 2)
-
-    # Map sample IDs to tree sequence node indices
-    # Tree sequence has 2 haploid nodes per individual
+def get_ts_individual_map(ts):
+    """Map sample IDs to tree-sequence individual objects."""
     ts_individuals = {}
     for ind in ts.individuals():
         ind_meta = json.loads(ind.metadata.decode("ascii"))
-        sample_id = ind_meta.get("sample_name", ind_meta.get("sample_id", ""))
-        ts_individuals[sample_id] = ind
+        sid = ind_meta.get("sample_name", ind_meta.get("sample_id", ""))
+        ts_individuals[sid] = ind
+    return ts_individuals
 
-    # Build pairs of individuals (all combinations)
-    pop_ids = pop["sample_id"].values
-    individual_pairs = list(combinations(pop_ids, 2))
 
-    if max_pairs is not None and len(individual_pairs) > max_pairs:
+def get_karyotype_groups(meta, population, arm):
+    """Return list of (group_name, filtered_dataframe) for a population/arm."""
+    pop = meta[meta["country"] == population]
+    inv_col = ARM_INVERSION.get(arm)
+
+    if inv_col is not None:
+        groups = []
+        for karyo_val, label in KARYO_GROUPS:
+            sub = pop[pop[inv_col].astype(int) == karyo_val].copy()
+            if len(sub) > 0:
+                groups.append((f"{inv_col}_{label}", sub))
+        return groups
+    else:
+        return [("all", pop.copy())]
+
+
+def build_pairs(sample_ids, ts_individuals, pair_type,
+                max_inter=MAX_INTER_PAIRS, max_individuals=MAX_INDIVIDUALS):
+    """Build haploid pairs and metadata for a group of individuals.
+
+    pair_type: "intra" or "inter"
+    Returns (haploid_pairs, individual_pairs, all_nodes) or (None, None, None) if empty.
+    """
+    # Collect diploid individuals present in tree sequence
+    # (skip haploid individuals, e.g. males on X chromosome)
+    valid_ids = []
+    nodes = {}
+    for sid in sample_ids:
+        if sid in ts_individuals:
+            n = ts_individuals[sid].nodes
+            if len(n) < 2:
+                continue  # haploid, skip
+            valid_ids.append(sid)
+            nodes[sid] = (int(n[0]), int(n[1]))
+
+    if len(valid_ids) == 0:
+        return None, None, None
+
+    # Cap individuals to keep genotype matrices manageable
+    if len(valid_ids) > max_individuals:
         rng = np.random.default_rng(42)
-        idx = rng.choice(len(individual_pairs), max_pairs, replace=False)
-        individual_pairs = [individual_pairs[i] for i in sorted(idx)]
-        log.info("Subsampled to %d pairs", max_pairs)
+        idx = rng.choice(len(valid_ids), max_individuals, replace=False)
+        valid_ids = [valid_ids[i] for i in sorted(idx)]
 
-    # Convert to haploid pairs (use first haplotype of each individual)
-    haploid_pairs = []
-    skipped = 0
-    valid_individual_pairs = []
-    for id_a, id_b in individual_pairs:
-        if id_a not in ts_individuals or id_b not in ts_individuals:
-            skipped += 1
-            continue
-        node_a = ts_individuals[id_a].nodes[0]  # first haplotype
-        node_b = ts_individuals[id_b].nodes[0]
-        haploid_pairs.append((int(node_a), int(node_b)))
-        valid_individual_pairs.append((id_a, id_b))
+    if pair_type == "intra":
+        individual_pairs = [(sid, sid) for sid in valid_ids]
+        haploid_pairs = [(nodes[sid][0], nodes[sid][1]) for sid in valid_ids]
+    else:  # inter
+        individual_pairs = list(combinations(valid_ids, 2))
+        if len(individual_pairs) > max_inter:
+            rng = np.random.default_rng(42)
+            idx = rng.choice(len(individual_pairs), max_inter, replace=False)
+            individual_pairs = [individual_pairs[i] for i in sorted(idx)]
+        haploid_pairs = [(nodes[a][0], nodes[b][0]) for a, b in individual_pairs]
 
-    if skipped:
-        log.warning("Skipped %d pairs (samples not found in tree sequence)", skipped)
-
-    log.info("Total pairs: %d", len(haploid_pairs))
-    return pop, haploid_pairs, valid_individual_pairs
+    all_nodes = sorted(n for sid in valid_ids for n in nodes[sid])
+    return haploid_pairs, individual_pairs, all_nodes
 
 
-# ---------------------------------------------------------------------------
-# Per-arm inference
-# ---------------------------------------------------------------------------
-
-def run_arm(
-    arm: str,
-    model,
-    cfg: FastCxtConfig,
-    trees_dir: str,
-    haploid_pairs: list[tuple[int, int]],
-    accessibility_path: str,
-    out_dir: Path,
-    batch_size: int = 64,
-    device: str = "cuda:0",
+def run_group(
+    arm, group_name, pair_type, model, cfg, trees_dir,
+    haploid_pairs, all_pop_nodes, out_dir,
+    batch_size=64, device="cuda:0",
 ):
-    """Run inference for one chromosome arm and save results."""
-    arm_dir = out_dir / arm
-    arm_dir.mkdir(parents=True, exist_ok=True)
+    """Run inference for one karyotype group + pair type."""
+    result_dir = out_dir / f"{group_name}_{pair_type}"
+    result_dir.mkdir(parents=True, exist_ok=True)
 
-    # Check if already computed
-    if (arm_dir / "means.npz").exists():
-        log.info("  %s: already computed, skipping", arm)
+    if (result_dir / "means.npz").exists():
+        log.info("    %s_%s: already computed, skipping", group_name, pair_type)
         return
 
     tree_path = f"{trees_dir}/{TREE_PATTERN.format(arm=arm)}"
     if not Path(tree_path).exists():
-        log.warning("  %s: tree file not found at %s, skipping", arm, tree_path)
+        log.warning("    %s: tree not found, skipping", arm)
         return
 
     t0 = time.time()
-    log.info("  %s: loading tree sequence...", arm)
-    ts = tskit.load(tree_path)
-    arm_length = int(ts.sequence_length)
-    gm = ts.genotype_matrix().T  # (n_haploids, n_sites)
+    log.info("    %s_%s: loading tree sequence...", group_name, pair_type)
+    ts_full = tskit.load(tree_path)
+    arm_length = int(ts_full.sequence_length)
+
+    n_ind = len(all_pop_nodes) // 2
+    log.info("    simplifying to %d individuals (%d haplotypes)...", n_ind, len(all_pop_nodes))
+    ts = ts_full.simplify(samples=all_pop_nodes)
+    del ts_full
+
+    gm = ts.genotype_matrix().T
     positions = ts.tables.sites.position
-    log.info("  %s: %d sites, %d haplotypes, %.1f Mb",
-             arm, len(positions), gm.shape[0], arm_length / 1e6)
+    del ts
+    log.info("    %d sites, %d haplotypes, %.1f Mb",
+             len(positions), gm.shape[0], arm_length / 1e6)
 
-    # Generate 1Mb blocks
-    blocks = generate_blocks(arm, arm_length, BLOCK_SIZE)
-    block_tuples = [(b.start, b.end) for b in blocks]
-    n_blocks = len(block_tuples)
-    log.info("  %s: %d blocks of %d bp", arm, n_blocks, BLOCK_SIZE)
+    old_to_new = {old: new for new, old in enumerate(all_pop_nodes)}
+    remapped = [(old_to_new[a], old_to_new[b]) for a, b in haploid_pairs]
 
-    # Run inference in pair batches to manage memory
-    pair_batch_size = 500  # pairs per batch
-    n_pairs = len(haploid_pairs)
-    n_windows_per_block = cfg.n_windows
+    block_tuples = []
+    for start in range(0, arm_length, BLOCK_SIZE):
+        end = start + BLOCK_SIZE
+        if end > arm_length and (arm_length - start) < BLOCK_SIZE:
+            break
+        block_tuples.append((start, end))
+    log.info("    %d blocks of %d bp, %d pairs", len(block_tuples), BLOCK_SIZE, len(remapped))
 
-    all_means = []
-    all_vars = []
-    all_index_maps = []
+    pair_batch_size = 500
+    n_pairs = len(remapped)
+    all_means, all_vars, all_index_maps = [], [], []
 
     for batch_start in range(0, n_pairs, pair_batch_size):
         batch_end = min(batch_start + pair_batch_size, n_pairs)
-        batch_pairs = haploid_pairs[batch_start:batch_end]
-        batch_n = len(batch_pairs)
+        batch_pairs = remapped[batch_start:batch_end]
 
         t_batch = time.time()
         means, variances, index_map = translate_from_genotype_matrix(
-            gm=gm,
-            positions=positions,
-            model=model,
-            blocks=block_tuples,
-            pivot_pairs=batch_pairs,
-            mutation_rate=MUTATION_RATE,
-            device=device,
-            batch_size=batch_size,
-            progress=False,
+            gm=gm, positions=positions, model=model,
+            blocks=block_tuples, pivot_pairs=batch_pairs,
+            mutation_rate=MUTATION_RATE, device=device,
+            batch_size=batch_size, build_workers=64, progress=False,
         )
 
         all_means.append(means)
         all_vars.append(variances)
-        # Adjust index_map pair indices for global offset
-        adjusted_map = index_map.copy()
-        adjusted_map[:, 1] += batch_start
-        all_index_maps.append(adjusted_map)
+        adj = index_map.copy()
+        adj[:, 1] += batch_start
+        all_index_maps.append(adj)
 
-        elapsed_batch = time.time() - t_batch
-        pairs_per_sec = batch_n / elapsed_batch
-        remaining = (n_pairs - batch_end) / pairs_per_sec if pairs_per_sec > 0 else 0
-        log.info("  %s: pairs %d-%d/%d (%.0f pairs/s, ~%.0f min remaining)",
-                 arm, batch_start, batch_end, n_pairs, pairs_per_sec, remaining / 60)
+        elapsed = time.time() - t_batch
+        pps = len(batch_pairs) / elapsed if elapsed > 0 else 0
+        rem = (n_pairs - batch_end) / pps / 60 if pps > 0 else 0
+        log.info("    pairs %d-%d/%d (%.0f pairs/s, ~%.0f min left)",
+                 batch_start, batch_end, n_pairs, pps, rem)
 
-    # Concatenate results
-    means = np.concatenate(all_means, axis=0)
-    variances = np.concatenate(all_vars, axis=0)
-    index_map = np.concatenate(all_index_maps, axis=0)
+    means = np.concatenate(all_means)
+    variances = np.concatenate(all_vars)
+    index_map = np.concatenate(all_index_maps)
 
-    elapsed = time.time() - t0
+    np.savez_compressed(result_dir / "means.npz", means=means)
+    np.savez_compressed(result_dir / "variances.npz", variances=variances)
+    np.save(result_dir / "index_map.npy", index_map)
 
-    # Save
-    np.savez_compressed(
-        arm_dir / "means.npz",
-        means=means,  # (n_pairs * n_blocks, n_windows)
-    )
-    np.savez_compressed(
-        arm_dir / "variances.npz",
-        variances=variances,  # (n_pairs * n_blocks, n_windows)
-    )
-    np.save(arm_dir / "index_map.npy", index_map)  # (n_rows, 2) [block_idx, pair_idx]
-
-    # Save block metadata
-    block_meta = [{"idx": i, "start": int(b.start), "end": int(b.end)} for i, b in enumerate(blocks)]
-    with open(arm_dir / "blocks.json", "w") as f:
+    block_meta = [{"idx": i, "start": s, "end": e} for i, (s, e) in enumerate(block_tuples)]
+    with open(result_dir / "blocks.json", "w") as f:
         json.dump(block_meta, f, indent=2)
 
-    size_mb = sum(f.stat().st_size for f in arm_dir.glob("*")) / 1e6
-    log.info("  %s: done in %.1f min, saved %.1f MB", arm, elapsed / 60, size_mb)
+    elapsed = time.time() - t0
+    size_mb = sum(f.stat().st_size for f in result_dir.glob("*")) / 1e6
+    log.info("    %s_%s: done in %.1f min, %.1f MB", group_name, pair_type, elapsed / 60, size_mb)
 
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Run pairwise TMRCA inference on a population"
-    )
+    parser = argparse.ArgumentParser()
     parser.add_argument("--out-dir", type=Path, required=True)
-    parser.add_argument("--population", default="Burkina Faso",
-                        help="Country name to filter samples")
+    parser.add_argument("--populations", nargs="+", default=None)
     parser.add_argument("--arms", nargs="+", default=ARMS, choices=ARMS)
     parser.add_argument("--checkpoint", default=DEFAULT_CHECKPOINT)
     parser.add_argument("--trees-dir", default=DEFAULT_TREES_DIR)
     parser.add_argument("--metadata", default=DEFAULT_METADATA)
-    parser.add_argument("--accessibility", default=DEFAULT_ACCESSIBILITY)
-    parser.add_argument("--max-pairs", type=int, default=None,
-                        help="Max number of pairs (for testing)")
+    parser.add_argument("--max-inter", type=int, default=MAX_INTER_PAIRS)
+    parser.add_argument("--max-individuals", type=int, default=MAX_INDIVIDUALS)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--device", default="cuda:0")
     args = parser.parse_args()
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load model
     model, cfg = load_model(args.checkpoint)
 
-    # Load first tree sequence to get sample mapping
-    first_arm = args.arms[0]
-    tree_path = f"{args.trees_dir}/{TREE_PATTERN.format(arm=first_arm)}"
-    ts_first = tskit.load(tree_path)
+    full_meta = pd.read_csv(args.metadata)
+    if args.populations:
+        populations = args.populations
+    else:
+        populations = sorted(full_meta["country"].unique().tolist())
+    log.info("Populations: %s", populations)
 
-    # Get population pairs
-    pop_meta, haploid_pairs, individual_pairs = get_population_pairs(
-        args.metadata, ts_first, args.population, args.max_pairs,
-    )
-
-    # Save metadata
-    pop_meta.to_csv(args.out_dir / "population_metadata.csv", index=False)
-
-    # Save pair index — maps pair_idx to (sample_id_a, sample_id_b)
-    pair_df = pd.DataFrame(individual_pairs, columns=["sample_a", "sample_b"])
-    pair_df.index.name = "pair_idx"
-    pair_df.to_csv(args.out_dir / "pair_index.csv")
-
-    # Save haploid pair mapping
-    np.save(args.out_dir / "haploid_pairs.npy", np.array(haploid_pairs, dtype=np.int32))
-
-    # Save run config
-    run_config = {
-        "population": args.population,
-        "n_individuals": len(pop_meta),
-        "n_pairs": len(haploid_pairs),
-        "arms": args.arms,
-        "checkpoint": args.checkpoint,
-        "trees_dir": args.trees_dir,
-        "mutation_rate": MUTATION_RATE,
-        "block_size": BLOCK_SIZE,
-        "model_window_size": cfg.window_size,
-        "model_n_windows": cfg.n_windows,
-        "model_max_samples": cfg.max_samples,
-    }
-    with open(args.out_dir / "config.json", "w") as f:
-        json.dump(run_config, f, indent=2)
-
-    log.info("Config saved. Starting inference on %d pairs across %s",
-             len(haploid_pairs), args.arms)
-
-    # Run per arm
     total_t0 = time.time()
-    for arm in args.arms:
-        log.info("Processing %s...", arm)
-        run_arm(
-            arm=arm,
-            model=model,
-            cfg=cfg,
-            trees_dir=args.trees_dir,
-            haploid_pairs=haploid_pairs,
-            accessibility_path=args.accessibility,
-            out_dir=args.out_dir,
-            batch_size=args.batch_size,
-            device=args.device,
-        )
 
-    total_elapsed = time.time() - total_t0
-    log.info("All done in %.1f min", total_elapsed / 60)
-    log.info("Results: %s", args.out_dir)
-    log.info("Output structure:")
-    log.info("  config.json           — run parameters")
-    log.info("  population_metadata.csv — sample info")
-    log.info("  pair_index.csv        — pair_idx -> (sample_a, sample_b)")
-    log.info("  haploid_pairs.npy     — (n_pairs, 2) haploid node indices")
-    log.info("  {arm}/means.npz       — (n_rows, n_windows) predicted log(TMRCA)")
-    log.info("  {arm}/variances.npz   — (n_rows, n_windows) predicted variance")
-    log.info("  {arm}/index_map.npy   — (n_rows, 2) [block_idx, pair_idx]")
-    log.info("  {arm}/blocks.json     — block start/end coordinates")
+    for population in populations:
+        log.info("=" * 70)
+        log.info("Population: %s", population)
+        log.info("=" * 70)
+
+        pop_dir = args.out_dir / population.replace(" ", "_")
+
+        for arm in args.arms:
+            log.info("  Arm: %s", arm)
+
+            tree_path = f"{args.trees_dir}/{TREE_PATTERN.format(arm=arm)}"
+            if not Path(tree_path).exists():
+                log.warning("    tree not found, skipping")
+                continue
+
+            ts = tskit.load(tree_path)
+            ts_ind_map = get_ts_individual_map(ts)
+            del ts
+
+            groups = get_karyotype_groups(full_meta, population, arm)
+            arm_dir = pop_dir / arm
+
+            for group_name, group_meta in groups:
+                sample_ids = group_meta["sample_id"].values
+
+                for pair_type in ("intra", "inter"):
+                    haploid_pairs, individual_pairs, all_nodes = build_pairs(
+                        sample_ids, ts_ind_map, pair_type,
+                        max_inter=args.max_inter,
+                        max_individuals=args.max_individuals,
+                    )
+                    if haploid_pairs is None or len(haploid_pairs) == 0:
+                        log.info("    %s_%s: no pairs, skipping", group_name, pair_type)
+                        continue
+
+                    if pair_type == "inter" and len(sample_ids) < 2:
+                        continue
+
+                    result_dir = arm_dir / f"{group_name}_{pair_type}"
+                    result_dir.mkdir(parents=True, exist_ok=True)
+
+                    # Save metadata
+                    config = {
+                        "population": population,
+                        "arm": arm,
+                        "group": group_name,
+                        "pair_type": pair_type,
+                        "n_individuals": len(set(a for a, _ in individual_pairs) | set(b for _, b in individual_pairs)),
+                        "n_pairs": len(haploid_pairs),
+                        "max_inter": args.max_inter if pair_type == "inter" else None,
+                        "mutation_rate": MUTATION_RATE,
+                        "block_size": BLOCK_SIZE,
+                    }
+                    with open(result_dir / "config.json", "w") as f:
+                        json.dump(config, f, indent=2)
+
+                    pair_df = pd.DataFrame(individual_pairs, columns=["sample_a", "sample_b"])
+                    pair_df.index.name = "pair_idx"
+                    pair_df.to_csv(result_dir / "pair_index.csv")
+                    np.save(result_dir / "haploid_pairs.npy",
+                            np.array(haploid_pairs, dtype=np.int32))
+
+                    log.info("    %s_%s: %d pairs", group_name, pair_type, len(haploid_pairs))
+
+                    run_group(
+                        arm=arm, group_name=group_name, pair_type=pair_type,
+                        model=model, cfg=cfg, trees_dir=args.trees_dir,
+                        haploid_pairs=haploid_pairs, all_pop_nodes=all_nodes,
+                        out_dir=arm_dir,
+                        batch_size=args.batch_size, device=args.device,
+                    )
+
+        log.info("Population '%s' done", population)
+
+    log.info("All done in %.1f min", (time.time() - total_t0) / 60)
 
 
 if __name__ == "__main__":
