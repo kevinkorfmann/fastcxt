@@ -1169,6 +1169,45 @@ def _plot_anogam_ref(ax):
                 label="stdpopsim Gabon (GabonAg1000G_1A17)")
 
 
+# SMC++ pre-computed references (from cxt paper, 2L, 200bp resolution)
+SMCPP_DIR = RESULTS_DIR / "smcpp_reference"
+SMCPP_POP_MAP = {
+    "Burkina_Faso": "burkina_faso",
+    "Cameroon": "cameroon",
+    "Ghana": "ghana",
+    "Mali": "mali",
+    "Uganda": "uganda",
+}
+
+def _plot_smcpp_ref(ax, pop, time_windows):
+    """Overlay SMC++ IICR for a population (if available)."""
+    smcpp_key = SMCPP_POP_MAP.get(pop)
+    if smcpp_key is None:
+        return
+    path = SMCPP_DIR / f"smcpp_{smcpp_key}.npz"
+    if not path.exists():
+        return
+    data = np.load(path)
+    yhats = data["yhats"]  # (n_reps, n_windows) in log-space
+
+    # Average across replicates, convert to generations
+    mean_log = np.mean(yhats, axis=0)
+    tmrcas_gen = np.exp(mean_log[mean_log > 0])  # filter out invalid
+
+    if len(tmrcas_gen) == 0:
+        return
+
+    rates = coalescence_rates(tmrcas_gen, time_windows)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        iicr = np.where(rates > 0, 1.0 / (2.0 * rates), np.nan)
+
+    time_mids = np.sqrt(time_windows[:-1] * time_windows[1:])
+    time_mids[0] = time_windows[1] / 2
+
+    ax.plot(time_mids, iicr, ":", color="#9C27B0", lw=2.5, alpha=0.7,
+            label="SMC++ (cxt paper, 2L)")
+
+
 DEMOG_MIN_ACC = 0.5  # minimum accessibility fraction to include a block
 
 def _get_masked_tmrcas(data, arm):
@@ -1257,14 +1296,15 @@ def fig8_demography():
             else:
                 ax.set_xscale("log")
                 ax.set_yscale("log")
+                ax.set_ylim(1e3, 5e6)
                 ax.set_xlabel("Time (generations)", fontsize=13)
                 ax.set_ylabel("IICR  (~Ne)", fontsize=13)
                 ax.grid(True, which="both", alpha=0.2)
-                _plot_anogam_ref(ax)
+
                 ax.legend(fontsize=9, ncol=2, loc="upper left")
 
             ax.set_title(f"Demographic inference — {arm} {pretty_group(group)} intra\n"
-                         f"vs stdpopsim A. gambiae (Gabon)",
+                         f"Intra-individual pairs",
                          fontsize=14)
 
             fname = f"demography_{arm}_{group}_allpops"
@@ -1300,14 +1340,14 @@ def fig8_demography():
         else:
             ax.set_xscale("log")
             ax.set_yscale("log")
+            ax.set_ylim(1e3, 5e6)
             ax.set_xlabel("Time (generations)", fontsize=13)
             ax.set_ylabel("IICR  (~Ne)", fontsize=13)
             ax.grid(True, which="both", alpha=0.2)
-            _plot_anogam_ref(ax)
             ax.legend(fontsize=11)
 
         ax.set_title(f"{pop.replace('_', ' ')} — 2L IICR by karyotype\n"
-                     f"vs stdpopsim A. gambiae (Gabon)", fontsize=14)
+                     f"Intra-individual pairs", fontsize=14)
 
         plt.savefig(FIG_DIR / "demography" / f"demography_2L_{pop}.png",
                     dpi=150, bbox_inches="tight")
@@ -1343,14 +1383,14 @@ def fig8_demography():
         else:
             ax.set_xscale("log")
             ax.set_yscale("log")
+            ax.set_ylim(1e3, 5e6)
             ax.set_xlabel("Time (generations)", fontsize=13)
             ax.set_ylabel("IICR  (~Ne)", fontsize=13)
             ax.grid(True, which="both", alpha=0.2)
-            _plot_anogam_ref(ax)
             ax.legend(fontsize=11)
 
         ax.set_title(f"{pop.replace('_', ' ')} — IICR across chromosome arms\n"
-                     f"Intra-individual (het/all)", fontsize=14)
+                     f"Intra-individual pairs", fontsize=14)
 
         plt.savefig(FIG_DIR / "demography" / f"demography_allarms_{pop}.png",
                     dpi=150, bbox_inches="tight")
