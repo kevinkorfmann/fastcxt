@@ -1402,6 +1402,165 @@ def fig8_demography():
 
 
 # ===========================================================================
+# Figure 9: Cross-population sweep comparison at resistance loci
+# ===========================================================================
+
+# Known insecticide-resistance loci (arm, center_bp, name, window_kb)
+RESISTANCE_LOCI = [
+    ("2L", 2_422_652, "vgsc/kdr", 500),
+    ("2L", 28_497_422, "Rdl", 500),
+    ("2L", 28_598_038, "CYP6P4", 500),
+    ("3R", 28_598_000, "Gste2", 500),
+    ("X", 15_241_718, "CYP9K1", 500),
+]
+
+POP_COLORS_SWEEP = {
+    "Burkina_Faso": "#2563eb", "Cameroon": "#dc2626",
+    "Central_African_Republic": "#059669", "Democratic_Republic_of_the_Congo": "#7c3aed",
+    "Equatorial_Guinea": "#d97706", "Gabon": "#0891b2",
+    "Gambia": "#4f46e5", "Ghana": "#be185d",
+    "Guinea": "#15803d", "Guinea-Bissau": "#a21caf",
+    "Kenya": "#b91c1c", "Mali": "#0369a1",
+    "Mayotte": "#86198f", "Mozambique": "#c2410c",
+    "Tanzania": "#4338ca", "Uganda": "#047857",
+}
+
+
+def fig9_sweep_comparison():
+    """Cross-population TMRCA profiles at resistance loci (Fig 3c)."""
+    outdir = FIG_DIR / "sweep_comparison"
+    outdir.mkdir(exist_ok=True)
+
+    for arm, center_bp, locus_name, window_kb in RESISTANCE_LOCI:
+        half = int(window_kb * 1e3 / 2)
+        start_bp = max(0, center_bp - half)
+        end_bp = center_bp + half
+
+        fig, ax = plt.subplots(figsize=(12, 5))
+        any_data = False
+
+        for pop in POPULATIONS:
+            # Use hom_standard for 2L/2R, all for others
+            group = ARM_GROUPS[arm][0]
+            data = load_group(pop, arm, group, "intra")
+            if data is None:
+                continue
+
+            bm = block_means(data)
+            mids = block_mids_mb(data)
+            start_mb = start_bp / 1e6
+            end_mb = end_bp / 1e6
+            mask = (mids >= start_mb) & (mids <= end_mb)
+            if mask.sum() < 2:
+                continue
+
+            color = POP_COLORS_SWEEP.get(pop, "#888")
+            label = pop.replace("_", " ")
+            ax.plot(mids[mask], bm[mask], color=color, lw=1.2, alpha=0.8, label=label)
+            any_data = True
+
+        if any_data:
+            ax.axvline(center_bp / 1e6, color="red", ls="--", lw=1, alpha=0.5)
+            ax.text(center_bp / 1e6, ax.get_ylim()[1], f"  {locus_name}",
+                    color="red", fontsize=10, va="top", fontstyle="italic")
+            ax.set_xlabel("Position (Mb)", fontsize=12)
+            ax.set_ylabel("Block mean log(TMRCA)", fontsize=12)
+            ax.set_title(f"Cross-population TMRCA at {locus_name} ({arm})",
+                         fontsize=13, fontweight="bold")
+            ax.legend(fontsize=8, ncol=2, loc="best")
+            ax.grid(True, alpha=0.2)
+        else:
+            pending_ax(ax)
+
+        plt.savefig(outdir / f"sweep_{locus_name.replace('/', '_')}_{arm}.png",
+                    dpi=150, bbox_inches="tight")
+        plt.savefig(outdir / f"sweep_{locus_name.replace('/', '_')}_{arm}.pdf",
+                    bbox_inches="tight")
+        plt.close()
+
+    print("  Saved sweep_comparison/*.png")
+
+
+# ===========================================================================
+# Figure 10: Population x locus outlier summary heatmap (Fig 3d)
+# ===========================================================================
+
+def fig10_pop_locus_heatmap():
+    """Heatmap: populations x resistance loci, colored by Z-score departure."""
+    outdir = FIG_DIR / "sweep_comparison"
+    outdir.mkdir(exist_ok=True)
+
+    locus_names = [name for _, _, name, _ in RESISTANCE_LOCI]
+    n_pops = len(POPULATIONS)
+    n_loci = len(RESISTANCE_LOCI)
+    z_matrix = np.full((n_pops, n_loci), np.nan)
+
+    for j, (arm, center_bp, locus_name, _) in enumerate(RESISTANCE_LOCI):
+        for i, pop in enumerate(POPULATIONS):
+            group = ARM_GROUPS[arm][0]
+            data = load_group(pop, arm, group, "intra")
+            if data is None:
+                continue
+
+            bm = block_means(data)
+            blocks = data["blocks"]
+            mids_bp = np.array([(b["start"] + b["end"]) / 2 for b in blocks])
+
+            # Find nearest block to locus center
+            dists = np.abs(mids_bp - center_bp)
+            nearest = np.argmin(dists)
+            if dists[nearest] > 200_000:
+                continue
+
+            # Z-score: negative = recent coalescence (sweep), positive = deep
+            mean_val = np.nanmean(bm)
+            std_val = np.nanstd(bm)
+            if std_val > 0:
+                z_matrix[i, j] = (bm[nearest] - mean_val) / std_val
+
+    # Only plot populations with at least one non-NaN
+    has_data = ~np.all(np.isnan(z_matrix), axis=1)
+    if not has_data.any():
+        return
+
+    z_sub = z_matrix[has_data]
+    pop_labels = [POPULATIONS[i].replace("_", " ") for i in range(n_pops) if has_data[i]]
+
+    fig, ax = plt.subplots(figsize=(max(6, n_loci * 1.5), max(4, len(pop_labels) * 0.5)))
+
+    from matplotlib.colors import TwoSlopeNorm
+    vmax = max(3, np.nanmax(np.abs(z_sub)))
+    norm = TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax)
+
+    im = ax.imshow(z_sub, aspect="auto", cmap="RdBu_r", norm=norm, interpolation="nearest")
+    ax.set_xticks(range(n_loci))
+    ax.set_xticklabels(locus_names, fontsize=11, fontweight="bold", rotation=30, ha="right")
+    ax.set_yticks(range(len(pop_labels)))
+    ax.set_yticklabels(pop_labels, fontsize=10)
+
+    # Annotate cells with Z-scores
+    for yi in range(z_sub.shape[0]):
+        for xi in range(z_sub.shape[1]):
+            val = z_sub[yi, xi]
+            if np.isfinite(val):
+                color = "white" if abs(val) > 1.5 else "black"
+                ax.text(xi, yi, f"{val:.1f}", ha="center", va="center",
+                        fontsize=9, color=color, fontweight="bold" if abs(val) > 2 else "normal")
+
+    cb = fig.colorbar(im, ax=ax, shrink=0.8, pad=0.02)
+    cb.set_label("Z-score (negative = sweep signal)", fontsize=10)
+
+    ax.set_title("Resistance loci — TMRCA departure by population",
+                 fontsize=13, fontweight="bold")
+    fig.tight_layout()
+    plt.savefig(outdir / "pop_locus_heatmap.png", dpi=150, bbox_inches="tight")
+    plt.savefig(outdir / "pop_locus_heatmap.pdf", bbox_inches="tight")
+    plt.close()
+
+    print("  Saved sweep_comparison/pop_locus_heatmap.png")
+
+
+# ===========================================================================
 # Main
 # ===========================================================================
 
@@ -1420,5 +1579,7 @@ if __name__ == "__main__":
     fig6_outlier_skylines()
     fig7_geographic_maps()
     fig8_demography()
+    fig9_sweep_comparison()
+    fig10_pop_locus_heatmap()
 
     print("\nDone! Re-run after more data arrives to fill in PENDING plots.")
