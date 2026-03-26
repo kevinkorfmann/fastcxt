@@ -40,11 +40,23 @@ arrangements. Homozygotes recombine freely within their arrangement.
 *Burkina Faso — three karyotype groups overlaid. The red shaded region marks
 In(2L)a (20.5–42.2 Mb). Accessibility track at bottom shows data quality.*
 
+.. image:: _static/gallery/2L_Cameroon.png
+   :width: 100%
+   :alt: Cameroon 2L inversion signal by karyotype
+
+*Cameroon — same three karyotype groups. Note similar inversion signature.*
+
+.. image:: _static/gallery/2L_Central_African_Republic.png
+   :width: 100%
+   :alt: Central African Republic 2L inversion signal by karyotype
+
+*Central African Republic — 2L inversion signal (2L data only, 2R in progress).*
+
 .. raw:: html
 
    <details style="margin: 1rem 0; padding: 0.5rem; background: #1e293b; border: 1px solid #334155; border-radius: 8px;">
    <summary style="cursor: pointer; color: #60a5fa; font-weight: bold;">Other populations (click to expand)</summary>
-   <p style="color: #64748b; padding: 1rem;">PENDING — will populate as inference completes for Cameroon, Uganda, Guinea, Ghana, Mali, and 10 more populations.</p>
+   <p style="color: #64748b; padding: 1rem;">PENDING — will populate as inference completes for the remaining 13 populations.</p>
    </details>
 
 
@@ -70,6 +82,18 @@ outliers (accessible regions only), red = old credible, gray x = suspect
 
 *Same for homozygous inverted. Note the deep dip near Rdl (28.5 Mb) and
 CDSB21 — potential selection signatures within the inverted arrangement.*
+
+.. image:: _static/gallery/Cameroon_2L_2La_heterozygous.png
+   :width: 100%
+   :alt: Outlier skyline — Cameroon 2L heterozygous intra
+
+*Cameroon, 2L, 2La-heterozygous, intra-individual.*
+
+.. image:: _static/gallery/Cameroon_2R_2Rb_hom_standard.png
+   :width: 100%
+   :alt: Outlier skyline — Cameroon 2R hom standard intra
+
+*Cameroon, 2R, 2Rb-hom-standard, intra-individual.*
 
 
 Karyotype Comparisons
@@ -134,6 +158,19 @@ Dashed black = stdpopsim Gabon reference.*
 *All chromosome arms overlaid. 3L and 3R (no inversions) track the stdpopsim
 reference more closely, providing a cleaner demographic signal.*
 
+.. image:: _static/gallery/demography_allarms_Cameroon.png
+   :width: 100%
+   :alt: Cameroon IICR all arms
+
+*Cameroon — all chromosome arms overlaid.*
+
+.. image:: _static/gallery/demography_3L_all_allpops.png
+   :width: 100%
+   :alt: Cross-population IICR comparison 3L
+
+*Cross-population IICR comparison on 3L (no inversions) — all completed
+populations overlaid. Burkina Faso, Cameroon, and Central African Republic.*
+
 
 Geographic Maps
 ---------------
@@ -163,22 +200,27 @@ Orange lines show coalescence along 2L, red shading = In(2L)a region.*
 population. Positive values = inversion creates deeper coalescence.*
 
 
-Pending Figures
----------------
+Progress & Pending Figures
+--------------------------
 
-The following will be generated as inference completes across all
-16 populations:
+**Completed populations (3/16):** Burkina Faso (all 5 arms), Cameroon (all 5
+arms), Central African Republic (2L complete, 2R in progress).
+
+**Currently running:** Central African Republic 2R on poppy (13 populations
+remaining after CAR).
+
+The following will be generated as inference completes:
 
 .. raw:: html
 
    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0;">
      <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem;">
        <span style="color: #64748b; font-style: italic;">PENDING</span><br/>
-       <span style="color: #94a3b8;">Per-population inversion signals (15 remaining)</span>
+       <span style="color: #94a3b8;">Per-population inversion signals (13 remaining)</span>
      </div>
      <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem;">
        <span style="color: #64748b; font-style: italic;">PENDING</span><br/>
-       <span style="color: #94a3b8;">Cross-population IICR comparison (all 16 overlaid)</span>
+       <span style="color: #94a3b8;">Full cross-population IICR comparison (all 16 overlaid)</span>
      </div>
      <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem;">
        <span style="color: #64748b; font-style: italic;">PENDING</span><br/>
@@ -186,14 +228,6 @@ The following will be generated as inference completes across all
      </div>
      <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem;">
        <span style="color: #64748b; font-style: italic;">PENDING</span><br/>
-       <span style="color: #94a3b8;">Outlier skylines for 2R inversions (2Rb karyotypes)</span>
-     </div>
-     <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem;">
-       <span style="color: #64748b; font-style: italic;">PENDING</span><br/>
        <span style="color: #94a3b8;">Full density grid with all populations (16 rows x 9 cols)</span>
-     </div>
-     <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem;">
-       <span style="color: #64748b; font-style: italic;">PENDING</span><br/>
-       <span style="color: #94a3b8;">Inter-population pairwise divergence analysis</span>
      </div>
    </div>
