@@ -53,6 +53,8 @@ PRESETS: dict[str, FastCxtConfig] = {
     "small": FastCxtConfig(d_model=128, n_enc_layers=4, n_dec_layers=2),
     "base": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4),
     "large": FastCxtConfig(d_model=512, n_enc_layers=8, n_dec_layers=6),
+    # AnoGam preset: 100kb, 200bp windows, 500 windows
+    "base_anogam": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, window_size=200, n_windows=500),
     # Curriculum presets for whole-chromosome decoding (SFS-only, 2000 bp windows)
     "base_25k": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, n_windows=25000, window_size=2000),
     "base_50k": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, n_windows=50000, window_size=2000),

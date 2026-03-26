@@ -1,0 +1,86 @@
+[
+  {
+    "mismatch_ratio": 0.001,
+    "n_trees": 3591,
+    "n_trees_true": 16426,
+    "mean_branch_length": 13.229433474389978,
+    "kc_topo": NaN,
+    "kc_bl": NaN,
+    "shared_breakpoints": 649,
+    "true_breakpoints": 16426,
+    "breakpoint_recall": 0.039510532083282604,
+    "time_s": 5.537372827529907
+  },
+  {
+    "mismatch_ratio": 0.01,
+    "n_trees": 3613,
+    "n_trees_true": 16426,
+    "mean_branch_length": 13.075285644910773,
+    "kc_topo": NaN,
+    "kc_bl": NaN,
+    "shared_breakpoints": 646,
+    "true_breakpoints": 16426,
+    "breakpoint_recall": 0.03932789480092536,
+    "time_s": 2.4255220890045166
+  },
+  {
+    "mismatch_ratio": 0.1,
+    "n_trees": 3613,
+    "n_trees_true": 16426,
+    "mean_branch_length": 13.066400694295465,
+    "kc_topo": NaN,
+    "kc_bl": NaN,
+    "shared_breakpoints": 649,
+    "true_breakpoints": 16426,
+    "breakpoint_recall": 0.039510532083282604,
+    "time_s": 2.3871405124664307
+  },
+  {
+    "mismatch_ratio": 1.0,
+    "n_trees": 3615,
+    "n_trees_true": 16426,
+    "mean_branch_length": 13.05618703089475,
+    "kc_topo": NaN,
+    "kc_bl": NaN,
+    "shared_breakpoints": 648,
+    "true_breakpoints": 16426,
+    "breakpoint_recall": 0.039449652989163524,
+    "time_s": 2.4682700634002686
+  },
+  {
+    "mismatch_ratio": 10.0,
+    "n_trees": 3615,
+    "n_trees_true": 16426,
+    "mean_branch_length": 13.045329577538059,
+    "kc_topo": NaN,
+    "kc_bl": NaN,
+    "shared_breakpoints": 650,
+    "true_breakpoints": 16426,
+    "breakpoint_recall": 0.03957141117740168,
+    "time_s": 2.4639766216278076
+  },
+  {
+    "mismatch_ratio": 100.0,
+    "n_trees": 3604,
+    "n_trees_true": 16426,
+    "mean_branch_length": 12.98411962742749,
+    "kc_topo": NaN,
+    "kc_bl": NaN,
+    "shared_breakpoints": 649,
+    "true_breakpoints": 16426,
+    "breakpoint_recall": 0.039510532083282604,
+    "time_s": 2.3650734424591064
+  },
+  {
+    "mismatch_ratio": "default",
+    "n_trees": 3814,
+    "n_trees_true": 16426,
+    "mean_branch_length": 13.465078040754884,
+    "kc_topo": NaN,
+    "kc_bl": NaN,
+    "shared_breakpoints": 673,
+    "true_breakpoints": 16426,
+    "breakpoint_recall": 0.04097163034214051,
+    "time_s": 2.40983510017395
+  }
+]

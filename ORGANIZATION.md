@@ -4,12 +4,13 @@
 
 ```
 fastcxt/                    # Core Python package
-experiment/                 # Human baseline experiment (constant Ne, 1Mb, 500 windows)
-experiment_human/           # Whole human chromosome decoding (curriculum learning)
-experiment_mosquito/        # AnoGam (mosquito) experiments
+experiment_human_poc/       # Human baseline PoC (constant Ne, 1Mb, 500 windows)
+experiment_human_curriculum/# Whole human chromosome decoding (curriculum learning)
+experiment_mosquito_poc/    # AnoGam (mosquito) PoC (100kb, 200bp windows)
+experiment_mosquito_legacy/ # Legacy mosquito experiments (1mb, 10mb, large context)
 paper/                      # LaTeX paper + figures
 docs/                       # Sphinx documentation source
-scripts/                    # Misc utility scripts
+scripts/                    # Misc utility scripts + AG3 data pipeline
 tests/                      # Unit tests
 ```
 
@@ -42,14 +43,14 @@ fastcxt/
 1. **Pairwise (FastCxtModel)**: Takes SFS features → predicts TMRCA per pair. Simple but O(n²) in pairs.
 2. **Node-time (NodeTimeModel)**: Takes tree topology features → predicts internal node times → LCA lookup for any pair. O(n log n) scaling.
 
-## Human baseline experiment (`experiment/`)
+## Human baseline PoC (`experiment_human_poc/`)
 
 Reproducible pipeline comparing pairwise vs node-time inference on simulated human-like data.
 
 **Parameters**: constant Ne=2e4, 1Mb sequence, 2000bp windows, 500 windows, sample sizes 10/25/50/100/200.
 
 ```
-experiment/
+experiment_human_poc/
 ├── config.py               # Shared constants (single source of truth)
 ├── run_all.sh              # Master pipeline (supports --from 03 to restart)
 ├── 01_simulate.sh          # Simulate tree sequences (constant scenario)
@@ -79,12 +80,12 @@ experiment/
 2. NodeTimeModel with ground-truth tree topology + LCA lookup
 3. NodeTimeModel with tsinfer-inferred topology + LCA lookup
 
-## Whole human chromosome decoding (`experiment_human/`)
+## Whole human chromosome decoding (`experiment_human_curriculum/`)
 
 Curriculum learning for full-chromosome TMRCA inference (50Mb → 250Mb).
 
 ```
-experiment_human/
+experiment_human_curriculum/
 ├── whole_homsap_chromosome_decoding/
 │   ├── run_sim.sh          # Simulate HomSap at each stage length
 │   ├── run_train.sh        # Train with curriculum stage presets
@@ -110,26 +111,116 @@ Each stage fine-tunes from the previous checkpoint. Positional embeddings are ex
 
 **Work directory on betty**: `/vast/projects/smathi/cohort/kkor/homsap_curriculum/`
 
-## AnoGam (mosquito) experiments (`experiment_mosquito/`)
+## AnoGam (mosquito) PoC (`experiment_mosquito_poc/`)
 
 ```
-experiment_mosquito/
-├── experiment/             # Clean pipeline (mirrors experiment/ but for AnoGam)
-│   ├── config.py           # AnoGam params: 100kb, 200bp windows, 500 windows
-│   ├── run_all.sh
-│   ├── 01_simulate.sh      # stdpopsim AnoGam scenario
-│   ├── 02_preprocess.sh
-│   ├── 03_train_pairwise.sh
-│   ├── 04_train_node_time.sh
-│   ├── 05_evaluate.sh
-│   ├── 06_benchmark_scaling.sh
-│   ├── slurm_betty.sh
-│   └── *.py                # Same scripts as experiment/, import from local config.py
-├── experiment_mossies/     # Legacy 100kb AnoGam experiment
-├── experiment-1mb-context/ # 1Mb context extension
-├── experiment-10mb-context/# 10Mb context extension
-└── experiment-large-context/# 400kb (2000 windows) context experiment
+experiment_mosquito_poc/
+├── config.py               # AnoGam params: 100kb, 200bp windows, 500 windows
+├── run_all.sh
+├── 01_simulate.sh          # stdpopsim AnoGam scenario
+├── 02_preprocess.sh
+├── 03_train_pairwise.sh    # Uses base_anogam preset (window_size=200)
+├── 04_train_node_time.sh
+├── 05_evaluate.sh
+├── 06_benchmark_scaling.sh
+├── slurm_betty.sh
+└── *.py                    # Same scripts as experiment_human_poc/, import from local config.py
 ```
+
+## Real data: Ag1000G / AG3 pipeline (`scripts/`)
+
+Scripts for downloading and preparing real *Anopheles gambiae* data from MalariaGEN's AG3 release for use with fastcxt.
+
+### Prerequisites
+
+```bash
+# 1. Request data access (one-time, approval usually within a day):
+#    https://forms.gle/d1NV3aL3EoVQGSHYA
+
+# 2. Install gcloud CLI and authenticate:
+curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz
+tar xf google-cloud-cli-linux-x86_64.tar.gz
+./google-cloud-sdk/install.sh --quiet
+source ~/.bashrc
+gcloud auth application-default login  # interactive, opens browser URL
+
+# 3. Python dependencies (already in pixi env)
+pip install malariagen_data pysam
+```
+
+### `scripts/ag3_pipeline.py` — Download + polarize AG3 data
+
+End-to-end pipeline: downloads phased haplotypes from MalariaGEN, polarizes using
+An. arabiensis (368 samples in AG3) as outgroup, outputs `0=ancestral, 1=derived`
+genotype matrices ready for fastcxt.
+
+```bash
+# Full pipeline — all 5 chromosome arms, all gambiae/coluzzii samples
+python scripts/ag3_pipeline.py --out-dir /sietch_colab/kkor/fastcxt/data/ag3
+
+# Single arm
+python scripts/ag3_pipeline.py --out-dir ./data/ag3 --arms 2L
+
+# Subset to one country
+python scripts/ag3_pipeline.py --out-dir ./data/ag3 \
+    --sample-query "country == 'Burkina Faso'"
+
+# High-confidence ancestral calls only (outgroup freq >= 0.95)
+python scripts/ag3_pipeline.py --out-dir ./data/ag3 --min-aa-prob 0.95
+
+# Skip download (use cached data from previous run)
+python scripts/ag3_pipeline.py --out-dir ./data/ag3 --skip-download
+
+# Validate against existing polarized VCFs on sietch
+python scripts/ag3_pipeline.py --out-dir ./data/ag3 --arms 2L \
+    --test-region 0:100000 --validate
+```
+
+**Output format** (per chromosome arm `.npz`):
+| Array | Shape | Description |
+|-------|-------|-------------|
+| `haplotypes` | `(n_haplotypes, n_sites)` int8 | `0`=ancestral, `1`=derived |
+| `positions` | `(n_sites,)` int32 | Genomic position (bp) |
+| `aa_prob` | `(n_sites,)` float32 | Confidence of ancestral call |
+| `samples` | `(n_samples,)` | Sample IDs |
+
+### `scripts/polarize_ag3.py` — Polarize from local zarr (sietch only)
+
+Faster alternative that reads from the pre-existing zarr store on sietch
+(`/sietch_colab/data_share/Ag1000G/Ag3.0/vcf/AgamP3.phased.zarr`), which
+already contains AA/AAProb fields from Scott Small's est-sfs pipeline.
+
+```bash
+# Polarize from local zarr
+python scripts/polarize_ag3.py --out-dir ./data/ag3_polarized --arms 2L
+
+# Test on small region with validation
+python scripts/polarize_ag3.py --out-dir ./data/ag3_test --arms 2L --test-region 0:100000
+```
+
+### Data lineage
+
+```
+MalariaGEN AG3 (GCS)
+  └─ ag3.haplotypes()          # phased by SHAPEIT4
+  └─ ag3.snp_calls(arabiensis) # 368 outgroup samples
+       │
+       ▼
+  Parsimony polarization       # arabiensis allele freq → ancestral call
+       │
+       ▼
+  Polarized .npz               # 0=ancestral, 1=derived → fastcxt input
+```
+
+### Existing data on sietch (`/sietch_colab/data_share/Ag1000G/Ag3.0/`)
+
+| Path | Contents |
+|------|----------|
+| `vcf/AgamP3.phased.zarr/` | Phased zarr with AA/AAProb (est-sfs polarized) |
+| `vcf/phased_vcf/gamb/` | Polarized VCFs: `gamb.{arm}.phased.n1470.derived.vcf.gz` |
+| `args_trees/tsinfer_data_v2/` | tsinfer+tsdate trees: `gamb.{arm}.gff.dated.ne.trees` |
+| `vcf/agp3.is_accessible.txt.npz` | Accessibility mask per arm |
+| `args_trees/gamb.meta.tsinfer.csv` | 1,470 An. gambiae sample metadata |
 
 ## Cluster (betty) details
 

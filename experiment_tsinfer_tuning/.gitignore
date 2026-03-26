@@ -1,0 +1,3 @@
+results/sim/*.trees
+results/real/*.trees
+results/real/*.samples

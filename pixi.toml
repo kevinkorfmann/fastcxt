@@ -1,0 +1,20 @@
+[workspace]
+name = "fastcxt"
+version = "0.1.0"
+description = "Fast pairwise coalescence time inference with Mamba SSMs"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+python = "3.11.*"
+pip = "*"
+cuda-toolkit = "12.1.*"
+
+[pypi-dependencies]
+fastcxt = { path = ".", editable = true, extras = ["all"] }
+mamba-ssm = ">=2.0"
+causal-conv1d = ">=1.2"
+
+[tasks]
+human-poc = """GPUS=0 bash experiment/run_all.sh"""
+mosquito-poc = """GPUS=1 bash experiment_mosquito/experiment/run_all.sh"""
