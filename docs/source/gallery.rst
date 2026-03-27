@@ -169,7 +169,8 @@ reference more closely, providing a cleaner demographic signal.*
    :alt: Cross-population IICR comparison 3L
 
 *Cross-population IICR comparison on 3L (no inversions) — all completed
-populations overlaid. Burkina Faso, Cameroon, and Central African Republic.*
+populations overlaid. Burkina Faso, Cameroon, Central African Republic, and
+Democratic Republic of the Congo.*
 
 
 Geographic Maps
@@ -203,11 +204,10 @@ population. Positive values = inversion creates deeper coalescence.*
 Progress & Pending Figures
 --------------------------
 
-**Completed populations (3/16):** Burkina Faso (all 5 arms), Cameroon (all 5
-arms), Central African Republic (2L complete, 2R in progress).
+**Completed populations (4/16):** Burkina Faso, Cameroon, Central African
+Republic, Democratic Republic of the Congo (all 5 arms each).
 
-**Currently running:** Central African Republic 2R on poppy (13 populations
-remaining after CAR).
+**Currently running:** Equatorial Guinea on poppy (12 populations remaining).
 
 The following will be generated as inference completes:
 
@@ -216,7 +216,7 @@ The following will be generated as inference completes:
    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0;">
      <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem;">
        <span style="color: #64748b; font-style: italic;">PENDING</span><br/>
-       <span style="color: #94a3b8;">Per-population inversion signals (13 remaining)</span>
+       <span style="color: #94a3b8;">Per-population inversion signals (12 remaining)</span>
      </div>
      <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem;">
        <span style="color: #64748b; font-style: italic;">PENDING</span><br/>
