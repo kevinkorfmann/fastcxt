@@ -245,12 +245,27 @@ def fig1_overview_heatmap():
                 cols.append((arm, group, pt))
                 col_labels.append(f"{arm}\n{pretty_group(group)}\n{pt}")
 
+    # Track why each cell is missing: "pending" vs "n=0"
+    # A population "has data" if any arm dir exists for it
+    MISSING_PENDING = 0   # population not yet processed
+    MISSING_N0 = 1        # karyotype group has 0 individuals
+    MISSING_DATA = 2      # has data
+
     matrix = np.full((len(POPULATIONS), len(cols)), np.nan)
+    cell_status = np.full((len(POPULATIONS), len(cols)), MISSING_PENDING, dtype=int)
+
     for i, pop in enumerate(POPULATIONS):
+        pop_dir = RESULTS_DIR / pop
+        pop_exists = pop_dir.exists() and any(pop_dir.iterdir())
         for j, (arm, group, pt) in enumerate(cols):
             data = load_group(pop, arm, group, pt)
             if data is not None:
                 matrix[i, j] = genome_mean(data)
+                cell_status[i, j] = MISSING_DATA
+            elif pop_exists and (pop_dir / arm).exists():
+                # Population and arm exist, but this karyotype group is absent
+                cell_status[i, j] = MISSING_N0
+            # else: stays MISSING_PENDING
 
     has_data = ~np.all(np.isnan(matrix), axis=1)
 
@@ -262,12 +277,16 @@ def fig1_overview_heatmap():
         cbar = plt.colorbar(im, ax=ax, shrink=0.6, pad=0.02)
         cbar.set_label("Mean log(TMRCA)", fontsize=12)
 
-        # Mark NaN cells
+        # Mark NaN cells with reason
         for i in range(matrix.shape[0]):
             for j in range(matrix.shape[1]):
                 if np.isnan(matrix[i, j]):
-                    ax.text(j, i, "—", ha="center", va="center",
-                            color="#999", fontsize=12)
+                    if cell_status[i, j] == MISSING_N0:
+                        ax.text(j, i, "n=0", ha="center", va="center",
+                                color="#cc6666", fontsize=9, fontstyle="italic")
+                    else:
+                        ax.text(j, i, "—", ha="center", va="center",
+                                color="#999", fontsize=12)
 
     ax.set_xticks(range(len(col_labels)))
     ax.set_xticklabels(col_labels, fontsize=11, rotation=0, ha="center")
