@@ -226,13 +226,21 @@ def run_group(
     variances = np.concatenate(all_vars)
     index_map = np.concatenate(all_index_maps)
 
-    np.savez_compressed(result_dir / "means.npz", means=means)
-    np.savez_compressed(result_dir / "variances.npz", variances=variances)
-    np.save(result_dir / "index_map.npy", index_map)
+    # Write to local /tmp first, then mv to final destination (avoids NFS stalls)
+    import tempfile, shutil
+    with tempfile.TemporaryDirectory(prefix="fastcxt_") as tmpdir:
+        tmp = Path(tmpdir)
+        np.savez_compressed(tmp / "means.npz", means=means)
+        np.savez_compressed(tmp / "variances.npz", variances=variances)
+        np.save(tmp / "index_map.npy", index_map)
 
-    block_meta = [{"idx": i, "start": s, "end": e} for i, (s, e) in enumerate(block_tuples)]
-    with open(result_dir / "blocks.json", "w") as f:
-        json.dump(block_meta, f, indent=2)
+        block_meta = [{"idx": i, "start": s, "end": e} for i, (s, e) in enumerate(block_tuples)]
+        with open(tmp / "blocks.json", "w") as f:
+            json.dump(block_meta, f, indent=2)
+
+        # mv each file to the final result_dir
+        for src in tmp.iterdir():
+            shutil.move(str(src), str(result_dir / src.name))
 
     elapsed = time.time() - t0
     size_mb = sum(f.stat().st_size for f in result_dir.glob("*")) / 1e6
