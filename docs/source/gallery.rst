@@ -281,6 +281,41 @@ indicate candidate regions for geographically varying selection.*
 annotations and accessibility track. The full ~230 Mb genome in one view.*
 
 
+Gene Region Zooms
+~~~~~~~~~~~~~~~~~
+
+High-resolution TMRCA profiles (200 bp windows) at candidate gene regions,
+comparing all populations. Bottom track shows coefficient of variation
+across populations — peaks indicate regions of geographically varying
+coalescence.
+
+.. image:: _static/gallery/gene_zoom_multi.png
+   :width: 100%
+   :alt: Gene zoom multi-panel
+
+*Six candidate gene regions: para/Vgsc (pyrethroid resistance), Rdl
+(dieldrin resistance), dpr2 (cell adhesion), Tep1 (immunity), CuSOD3
+(oxidative stress), CYP9K1 (metabolic resistance). Each panel shows
+median TMRCA per population (blue = West, green = Central, red = East
+Africa).*
+
+.. image:: _static/gallery/zoom_para_Vgsc_2L.png
+   :width: 100%
+   :alt: Vgsc gene zoom
+
+*para/Vgsc locus on 2L — voltage-gated sodium channel conferring
+pyrethroid resistance. Gene bodies annotated. Bottom: CV across
+populations peaks near the gene, indicating population-specific
+selection signatures.*
+
+.. image:: _static/gallery/zoom_dpr2_3R.png
+   :width: 100%
+   :alt: dpr2 gene zoom
+
+*dpr2 locus on 3R — a top PC1 loading peak. Population-specific TMRCA
+variation visible around the gene.*
+
+
 Progress & Pending Figures
 --------------------------
 
