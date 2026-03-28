@@ -90,7 +90,16 @@ def find_gene(genes_data, arm, pos_bp):
     if best is None:
         return None
     sym = best.get("symbol", "").strip()
-    return sym if sym else best.get("id", "")
+    if sym:
+        return sym
+    # Use short description if available, else AGAP ID
+    desc = best.get("description", "").strip()
+    if desc and desc != "unspecified product":
+        short = desc.split(",")[0].split("(")[0].split("[")[0].strip()
+        if len(short) > 22:
+            short = short[:19] + "..."
+        return short
+    return best.get("id", "")
 
 
 def build_multi_arm_matrix(pops, arms):
