@@ -200,6 +200,42 @@ Orange lines show coalescence along 2L, red shading = In(2L)a region.*
 population. Positive values = inversion creates deeper coalescence.*
 
 
+Population Structure
+--------------------
+
+PCA and clustering of populations based on their coalescence profiles
+across all chromosome arms and karyotype groups.
+
+.. image:: _static/gallery/pca_all_features.png
+   :width: 100%
+   :alt: PCA of coalescence profiles
+
+*PCA on all features (arms x karyotype groups x pair types). PC1 (66%)
+separates East Africa (Kenya) from West/Central. Blue = West, purple =
+Central, red = East Africa.*
+
+.. image:: _static/gallery/pca_on_map.png
+   :width: 100%
+   :alt: PCA projected onto Africa map
+
+*PC1 projected onto geography. A smooth west-to-east gradient in
+coalescence profiles mirrors geographic distance.*
+
+.. image:: _static/gallery/geo_vs_coal_distance.png
+   :width: 100%
+   :alt: Isolation by distance
+
+*Geographic distance vs coalescence profile distance (r = 0.318,
+p = 0.009). Dots = within-region pairs, crosses = between-region pairs.*
+
+.. image:: _static/gallery/dendrogram.png
+   :width: 100%
+   :alt: Hierarchical clustering dendrogram
+
+*Average-linkage clustering. West African populations form a tight
+cluster, Central African populations group together, Kenya is an outgroup.*
+
+
 Progress & Pending Figures
 --------------------------
 
