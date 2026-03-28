@@ -140,20 +140,109 @@ def main():
     print("  Saved pca_highres.png")
 
     # =====================================================================
-    # Figure 2: PCA loadings — which genomic regions drive PC1?
+    # Figure 2: PCA loadings + accessibility + gene annotations
     # =====================================================================
-    fig, ax = plt.subplots(figsize=(16, 4))
-    loadings = pca.components_[0]  # PC1 loadings
-    n_3l = len(get_pop_median_profile(pops[0], "3L", "all")[0])
-    x = np.arange(len(loadings))
-    ax.fill_between(x[:n_3l], loadings[:n_3l], color="#059669", alpha=0.4, label="3L")
-    ax.fill_between(x[n_3l:], loadings[n_3l:], color="#d97706", alpha=0.4, label="3R")
-    ax.axhline(0, color="black", lw=0.5)
-    ax.set_xlabel("Block index")
-    ax.set_ylabel("PC1 loading")
-    ax.set_title("PC1 loadings — which genomic regions drive population differentiation",
-                 fontweight="bold")
-    ax.legend(fontsize=10)
+    loadings = pca.components_[0]
+    prof_3l, mids_3l = get_pop_median_profile(pops[0], "3L", "all")
+    prof_3r, mids_3r = get_pop_median_profile(pops[0], "3R", "all")
+    n_3l = len(prof_3l)
+
+    # Build x-axis in Mb: 3L positions then 3R positions offset by gap
+    gap = 5  # Mb visual gap between arms
+    x_3l = mids_3l
+    x_3r = mids_3r + mids_3l[-1] + gap
+
+    x_mb = np.concatenate([x_3l, x_3r])
+
+    fig, (ax_load, ax_acc) = plt.subplots(2, 1, figsize=(18, 5),
+        height_ratios=[3, 1], sharex=True, gridspec_kw={"hspace": 0.08})
+
+    # --- Top: loadings ---
+    ax_load.fill_between(x_mb[:n_3l], loadings[:n_3l], color="#059669", alpha=0.4, label="3L")
+    ax_load.fill_between(x_mb[n_3l:], loadings[n_3l:], color="#d97706", alpha=0.4, label="3R")
+    ax_load.axhline(0, color="black", lw=0.5)
+    ax_load.axvline(x_3l[-1] + gap/2, color="#ccc", lw=1, ls="--")
+
+    # Annotate top loading peaks with nearest genes
+    genes_data = None
+    genes_file = RESULTS_DIR / "genes.json"
+    if genes_file.exists():
+        genes_data = json.load(open(genes_file))
+
+    def find_gene_at(arm, pos_bp):
+        if genes_data is None or arm not in genes_data:
+            return None
+        best_dist, best = 50_000, None
+        for g in genes_data[arm]:
+            mid = (g["start"] + g["end"]) / 2
+            dist = abs(mid - pos_bp)
+            if dist < best_dist:
+                best_dist = dist
+                best = g
+        if best is None:
+            return None
+        return best.get("symbol") or best.get("description", "")[:20] or best.get("id", "")
+
+    # Find top 8 peaks by absolute loading
+    abs_loadings = np.abs(loadings)
+    # Exclude peaks within 5 blocks of each other
+    peak_indices = []
+    sorted_idx = np.argsort(-abs_loadings)
+    for idx in sorted_idx:
+        if len(peak_indices) >= 8:
+            break
+        if all(abs(idx - p) > 5 for p in peak_indices):
+            peak_indices.append(idx)
+
+    texts = []
+    for pi in peak_indices:
+        if pi < n_3l:
+            arm = "3L"
+            pos_bp = int(mids_3l[pi] * 1e6)
+        else:
+            arm = "3R"
+            pos_bp = int(mids_3r[pi - n_3l] * 1e6)
+
+        gene = find_gene_at(arm, pos_bp)
+        if gene:
+            label = f"{gene}\n({x_mb[pi]:.1f} Mb)"
+        else:
+            label = f"{x_mb[pi]:.1f} Mb"
+
+        t = ax_load.annotate(label, (x_mb[pi], loadings[pi]),
+                    fontsize=7, ha="center", va="bottom" if loadings[pi] > 0 else "top",
+                    xytext=(0, 8 if loadings[pi] > 0 else -8),
+                    textcoords="offset points", color="#333",
+                    arrowprops=dict(arrowstyle="-", color="#999", lw=0.5),
+                    bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#ddd", alpha=0.8))
+
+    ax_load.set_ylabel("PC1 loading", fontsize=11)
+    ax_load.set_title("PC1 loadings — genomic regions driving population differentiation",
+                      fontweight="bold", fontsize=12)
+    ax_load.legend(fontsize=10, loc="upper right")
+
+    # --- Bottom: accessibility/missingness track ---
+    acc_file = RESULTS_DIR / "accessibility_100kb.npz"
+    if acc_file.exists():
+        acc = np.load(acc_file)
+        for arm, x_offset, color in [("3L", 0, "#059669"), ("3R", mids_3l[-1] + gap, "#d97706")]:
+            frac = acc[f"{arm}_frac"]
+            amids = acc[f"{arm}_mids"]
+            missing = 1.0 - frac
+            kernel = 3
+            if len(missing) > kernel:
+                missing = np.convolve(missing, np.ones(kernel)/kernel, mode="same")
+            ax_acc.fill_between(amids + x_offset, 0, missing, color="#E53935", alpha=0.3)
+            ax_acc.plot(amids + x_offset, missing, color="#E53935", lw=0.6, alpha=0.6)
+
+    ax_acc.axvline(x_3l[-1] + gap/2, color="#ccc", lw=1, ls="--")
+    ax_acc.set_ylim(0, 0.8)
+    ax_acc.invert_yaxis()
+    ax_acc.set_ylabel("Missing", fontsize=9, color="#E53935")
+    ax_acc.set_xlabel("Position (Mb)", fontsize=11)
+    for spine in ax_acc.spines.values():
+        spine.set_color("#ddd")
+
     fig.tight_layout()
     fig.savefig(FIG_DIR / "pca_loadings.png", dpi=150, bbox_inches="tight")
     fig.savefig(FIG_DIR / "pca_loadings.pdf", bbox_inches="tight")
