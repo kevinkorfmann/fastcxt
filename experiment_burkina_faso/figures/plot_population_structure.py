@@ -61,7 +61,7 @@ REGION = {
     "Mayotte": "East", "Mozambique": "East", "Tanzania": "East", "Uganda": "East",
 }
 
-REGION_CLR = {"West": "#2563eb", "Central": "#8b5cf6", "East": "#ef4444"}
+REGION_CLR = {"West": "#2563eb", "Central": "#f59e0b", "East": "#ef4444"}
 
 AFRICA_OUTLINE = [
     (-17.5, 14.7), (-17.3, 21.1), (-13.2, 23.5), (-12.0, 25.9),
