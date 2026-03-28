@@ -236,6 +236,44 @@ p = 0.009). Dots = within-region pairs, crosses = between-region pairs.*
 cluster, Central African populations group together, Kenya is an outgroup.*
 
 
+High-Resolution Structure
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+PCA and UMAP using per-block TMRCA profiles across 950 genomic blocks
+(3L + 3R), capturing fine-scale coalescence variation rather than just
+population means.
+
+.. image:: _static/gallery/pca_highres.png
+   :width: 100%
+   :alt: High-resolution PCA
+
+*PCA on block-resolution TMRCA profiles. PC1 (74%) captures the dominant
+west-to-east differentiation axis.*
+
+.. image:: _static/gallery/umap_highres.png
+   :width: 100%
+   :alt: UMAP of TMRCA profiles
+
+*UMAP embedding reveals finer population clustering: West African
+populations separate from Central, with Kenya and Gambia as outliers.*
+
+.. image:: _static/gallery/pca_perpair.png
+   :width: 100%
+   :alt: Per-pair PCA
+
+*Per-pair PCA on chr3L (375 individual haplotype pairs). Each dot is one
+within-individual pair, colored by population. Populations form overlapping
+but distinguishable clouds.*
+
+.. image:: _static/gallery/pca_loadings.png
+   :width: 100%
+   :alt: PC1 loadings along the genome
+
+*PC1 loadings across 3L and 3R. Peaks indicate genomic regions that
+contribute most to population differentiation — candidate regions for
+geographically varying selection.*
+
+
 Progress & Pending Figures
 --------------------------
 
