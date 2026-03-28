@@ -259,20 +259,8 @@ def main():
 
     fig, ax = plt.subplots(figsize=(8, 6))
 
-    # Color by region pair
-    idx = 0
-    for i in range(n):
-        for j in range(i+1, n):
-            ri, rj = REGION.get(pops[i], ""), REGION.get(pops[j], "")
-            if ri == rj:
-                c = REGION_CLR.get(ri, "#888")
-                marker = "o"
-            else:
-                c = "#999"
-                marker = "x"
-            ax.scatter(geo_dists[idx], coal_dists[idx], c=c, s=40, alpha=0.7,
-                       marker=marker, zorder=3, edgecolors="none")
-            idx += 1
+    ax.scatter(geo_dists, coal_dists, c="#2563eb", s=40, alpha=0.6,
+               zorder=3, edgecolors="white", lw=0.4)
 
     # Fit line
     z = np.polyfit(geo_dists, coal_dists, 1)
@@ -283,12 +271,6 @@ def main():
     ax.set_ylabel("Coalescence profile distance (Euclidean)")
     ax.set_title(f"Isolation by distance — r={r_pearson:.3f} (p={p_pearson:.1e}), "
                  f"Spearman={r_spearman:.3f}", fontweight="bold")
-
-    # Legend
-    within = Line2D([0], [0], marker="o", color="w", markerfacecolor="#666", markersize=8, label="Within region")
-    between = Line2D([0], [0], marker="x", color="w", markerfacecolor="#999",
-                     markeredgecolor="#999", markersize=8, label="Between regions")
-    ax.legend(handles=[within, between], fontsize=9)
 
     fig.tight_layout()
     fig.savefig(FIG_DIR / "geo_vs_coal_distance.png", dpi=150, bbox_inches="tight")
