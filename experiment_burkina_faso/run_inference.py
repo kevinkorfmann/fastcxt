@@ -246,6 +246,11 @@ def run_group(
     size_mb = sum(f.stat().st_size for f in result_dir.glob("*")) / 1e6
     log.info("    %s_%s: done in %.1f min, %.1f MB", group_name, pair_type, elapsed / 60, size_mb)
 
+    # Flush CUDA cache between groups to prevent context buildup
+    import torch
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
 
 def main():
     parser = argparse.ArgumentParser()
