@@ -80,31 +80,21 @@ def get_pop_median_profile(pop, arm, group):
 
 
 def find_gene(genes_data, arm, pos_bp):
+    """Find nearest gene with a proper symbol. Returns symbol or None."""
     if genes_data is None or arm not in genes_data:
         return None
-    radius = 50_000
-    # First pass: prefer genes with a symbol
-    best_sym_dist, best_sym = radius, None
-    best_any_dist, best_any = radius, None
+    # Search within 100 kb for a gene with a symbol name
+    best_dist, best = 100_000, None
     for g in genes_data[arm]:
+        sym = g.get("symbol", "").strip()
+        if not sym:
+            continue
         d = abs((g["start"] + g["end"]) / 2 - pos_bp)
-        if d < best_any_dist:
-            best_any_dist, best_any = d, g
-        if g.get("symbol", "").strip() and d < best_sym_dist:
-            best_sym_dist, best_sym = d, g
-    # Use the symbol-bearing gene if one is close enough
-    if best_sym is not None:
-        return best_sym["symbol"].strip()
-    if best_any is None:
-        return None
-    # Fallback: short description or AGAP ID
-    desc = best_any.get("description", "").strip()
-    if desc and desc != "unspecified product":
-        short = desc.split(",")[0].split("(")[0].split("[")[0].strip()
-        if len(short) > 20:
-            short = short[:17] + "..."
-        return short
-    return best_any.get("id", "")
+        if d < best_dist:
+            best_dist, best = d, g
+    if best is not None:
+        return best["symbol"].strip()
+    return None
 
 
 def build_multi_arm_matrix(pops, arms):
