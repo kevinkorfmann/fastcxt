@@ -269,9 +269,16 @@ but distinguishable clouds.*
    :width: 100%
    :alt: PC1 loadings along the genome
 
-*PC1 loadings across 3L and 3R. Peaks indicate genomic regions that
-contribute most to population differentiation — candidate regions for
-geographically varying selection.*
+*PC1 loadings across 3L and 3R with gene annotations (AGAP IDs) at peak
+positions. Bottom track shows raw data accessibility (missingness). Peaks
+indicate candidate regions for geographically varying selection.*
+
+.. image:: _static/gallery/pca_loadings_allarms.png
+   :width: 100%
+   :alt: PC1 loadings all 5 chromosome arms
+
+*PC1 loadings across all 5 chromosome arms (2L, 2R, 3L, 3R, X) with gene
+annotations and accessibility track. The full ~230 Mb genome in one view.*
 
 
 Progress & Pending Figures
