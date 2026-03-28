@@ -203,11 +203,11 @@ population. Positive values = inversion creates deeper coalescence.*
 Progress & Pending Figures
 --------------------------
 
-**Completed populations (10/16):** Burkina Faso, Cameroon, Central African
+**Completed populations (11/16):** Burkina Faso, Cameroon, Central African
 Republic, Democratic Republic of the Congo, Equatorial Guinea, Gabon,
-Gambia, Ghana, Guinea, Guinea-Bissau (all 5 arms each).
+Gambia, Ghana, Guinea, Guinea-Bissau, Kenya (all 5 arms each).
 
-**Currently running:** Kenya on poppy (6 populations remaining).
+**Currently running:** Mali on poppy (5 populations remaining).
 
 The following will be generated as inference completes:
 
@@ -216,7 +216,7 @@ The following will be generated as inference completes:
    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0;">
      <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem;">
        <span style="color: #64748b; font-style: italic;">PENDING</span><br/>
-       <span style="color: #94a3b8;">Per-population inversion signals (6 remaining)</span>
+       <span style="color: #94a3b8;">Per-population inversion signals (5 remaining)</span>
      </div>
      <div style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem;">
        <span style="color: #64748b; font-style: italic;">PENDING</span><br/>
