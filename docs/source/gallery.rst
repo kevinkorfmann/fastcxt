@@ -316,6 +316,39 @@ selection signatures.*
 variation visible around the gene.*
 
 
+Statistical Enrichment
+~~~~~~~~~~~~~~~~~~~~~~
+
+Permutation testing and functional enrichment analysis of TMRCA outlier
+regions and population differentiation peaks.
+
+.. image:: _static/gallery/permutation_test.png
+   :width: 100%
+   :alt: Permutation test
+
+*Resistance loci are significantly enriched among TMRCA outlier blocks
+(p < 0.0001, 10,000 permutations). Observed = 21 overlaps across all
+populations, expected by chance = 4.9. Individual population tests show
+strongest signal in Ghana (14.8x fold, p = 0.0005) and DRC (19.8x fold,
+p = 0.003).*
+
+.. image:: _static/gallery/functional_enrichment.png
+   :width: 100%
+   :alt: Functional enrichment
+
+*Functional categories enriched at PC1 loading peaks (population
+differentiation drivers). Ribosomal genes are significantly enriched
+(1.8x, p = 0.035). Heat shock/chaperone and calcium signaling genes show
+trends (p < 0.1).*
+
+.. image:: _static/gallery/peak_annotation_pie.png
+   :width: 60%
+   :alt: Annotation status
+
+*44% of genes at population differentiation peaks are uncharacterized —
+candidates for functional follow-up.*
+
+
 Progress & Pending Figures
 --------------------------
 
