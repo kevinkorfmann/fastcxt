@@ -69,8 +69,9 @@ class PairDataset(Dataset):
         X = np.load(X_path, mmap_mode="r")
         y = np.load(y_path, mmap_mode="r")
 
+        # X.npy is already log1p-transformed by build_sfs_tensor; do NOT apply
+        # log1p again (LazyPairDataset and inference apply it exactly once).
         Xi = torch.as_tensor(np.array(X[p_idx]), dtype=torch.float32)
-        Xi = torch.log1p(Xi)
 
         N = Xi.shape[-1]
         if N < self.max_samples:

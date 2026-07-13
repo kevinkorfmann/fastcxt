@@ -180,6 +180,17 @@ def translate_from_genotype_matrix(
         folded=folded, multiallelic=multiallelic,
     )
 
+    # Pad/truncate the SFS sample axis to the model's max_samples, exactly as
+    # the training datasets do -- inference data rarely has the same haploid
+    # count as training (e.g. 316 real mosquito haploids vs a 200-wide model).
+    max_samples = getattr(getattr(model, 'config', None), 'max_samples', X.shape[-1])
+    N = X.shape[-1]
+    if N < max_samples:
+        pad = [(0, 0)] * (X.ndim - 1) + [(0, max_samples - N)]
+        X = np.pad(X, pad)
+    elif N > max_samples:
+        X = X[..., :max_samples]
+
     param_dtype = next(model.parameters()).dtype
     X_t = torch.as_tensor(X, dtype=param_dtype)
     if torch.cuda.is_available():
