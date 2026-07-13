@@ -347,6 +347,8 @@ def main():
                     help="Override mutation rate (stdpopsim uses species default)")
     ap.add_argument("--recombination-rate", type=float, default=None,
                     help="Override recombination rate")
+    ap.add_argument("--population-size", type=float, default=None,
+                    help="Override Ne (msprime scenarios: constant/sawtooth/island)")
     ap.add_argument("--mutation-model", type=str, default=None,
                     choices=["binary", "jc69", "hky"],
                     help="Mutation model (msprime scenarios only). jc69/hky are "
@@ -361,6 +363,8 @@ def main():
         overrides["mutation_rate"] = args.mutation_rate
     if args.recombination_rate is not None:
         overrides["recombination_rate"] = args.recombination_rate
+    if args.population_size is not None:
+        overrides["population_size"] = args.population_size
     if args.mutation_model is not None:
         overrides["mutation_model"] = args.mutation_model
     if args.genetic_map is not None:
