@@ -33,6 +33,7 @@ def _build_sources(
     window_size: int = 2000,
     workers: int = 4,
     progress: bool = True,
+    folded: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Build SFS source tensors for all (block, pair) combinations.
 
@@ -54,6 +55,7 @@ def _build_sources(
             tasks.append(dict(
                 gm=bgm, positions=bpos, pivot_a=pA, pivot_b=pB,
                 sequence_length=seq_len, window_size=window_size,
+                folded=folded,
             ))
             index_map.append([b_idx, p_idx])
 
@@ -141,8 +143,16 @@ def translate_from_genotype_matrix(
     batch_size: int = 128,
     build_workers: int = 4,
     progress: bool = True,
+    folded: bool | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Infer pairwise TMRCA from a genotype matrix.
+
+    Parameters
+    ----------
+    folded : bool or None
+        Whether to fold the SFS frequency axis (unpolarized features).  If
+        None (default), taken from ``model.config.folded`` so inference
+        automatically matches how the checkpoint was trained.
 
     Returns
     -------
@@ -154,9 +164,13 @@ def translate_from_genotype_matrix(
     n_win = getattr(model, 'config', None) and model.config.n_windows or 500
     window_size = int((b - a) / n_win)
 
+    if folded is None:
+        folded = bool(getattr(getattr(model, 'config', None), 'folded', False))
+
     X, index_map = _build_sources(
         gm, positions, blocks, pivot_pairs,
         window_size=window_size, workers=build_workers, progress=progress,
+        folded=folded,
     )
 
     param_dtype = next(model.parameters()).dtype

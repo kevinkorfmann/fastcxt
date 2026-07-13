@@ -119,8 +119,15 @@ def process_one_ts(
     window_size: int = 2000,
     sequence_length: int | None = None,
     accessibility_mask: np.ndarray | None = None,
+    folded: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute SFS features and log-TMRCA targets for a set of pairs.
+
+    Parameters
+    ----------
+    folded : bool
+        Fold the SFS frequency axis (minor-allele count) so the features are
+        polarization-invariant.  See ``fastcxt.sfs.build_sfs_tensor``.
 
     Returns
     -------
@@ -141,7 +148,7 @@ def process_one_ts(
     n_windows = int(np.ceil(sequence_length / window_size))
 
     probe = build_sfs_tensor(gm, positions, int(pairs[0][0]), int(pairs[0][1]),
-                             float(sequence_length), window_size)
+                             float(sequence_length), window_size, folded=folded)
     X = np.empty((P,) + probe.shape, dtype=np.float16)
     y = np.empty((P, n_windows), dtype=np.float16)
 
@@ -151,7 +158,7 @@ def process_one_ts(
 
     for k in range(1, P):
         pa, pb = int(pairs[k][0]), int(pairs[k][1])
-        X[k] = build_sfs_tensor(gm, positions, pa, pb, float(sequence_length), window_size)
+        X[k] = build_sfs_tensor(gm, positions, pa, pb, float(sequence_length), window_size, folded=folded)
         yk = windowed_tmrca(ts, pa, pb, window_size, sequence_length)
         y[k] = np.log(np.clip(yk, 1e-10, None)).astype(np.float16)
 
@@ -237,6 +244,7 @@ class PreprocessJob:
     mutation_rate_override: float | None
     accessibility_mask_path: str | None
     lazy_sfs: bool = False
+    folded: bool = False
 
 
 def _run_job(job: PreprocessJob) -> str:
@@ -307,7 +315,7 @@ def _run_job(job: PreprocessJob) -> str:
         else:
             X, y = process_one_ts(
                 ts, pairs, job.window_size, job.sequence_length,
-                accessibility_mask=acc_mask,
+                accessibility_mask=acc_mask, folded=job.folded,
             )
             np.save(out_dir / "X.npy", X)
             np.save(out_dir / "y.npy", y)
@@ -328,6 +336,7 @@ def _run_job(job: PreprocessJob) -> str:
             "num_samples": int(ts.num_samples),
             "mutation_rate": float(mu_rate),
             "has_accessibility_mask": acc_mask is not None,
+            "folded": bool(job.folded),
         }
         if job.lazy_sfs:
             meta["storage_mode"] = "lazy_sfs"
@@ -366,6 +375,9 @@ def main():
                     help="Path to .npz accessibility mask (for missing-data regions)")
     ap.add_argument("--lazy-sfs", action="store_true",
                     help="Store genotype matrix + positions instead of pre-computed SFS (saves disk)")
+    ap.add_argument("--folded", action="store_true",
+                    help="Fold the SFS frequency axis (minor-allele count) so features are "
+                         "polarization-invariant / usable on unpolarized data")
     args = ap.parse_args()
 
     base = pathlib.Path(args.base_dir)
@@ -398,6 +410,7 @@ def main():
             mutation_rate_override=args.mutation_rate,
             accessibility_mask_path=args.accessibility_mask,
             lazy_sfs=args.lazy_sfs,
+            folded=args.folded,
         ))
 
     with mp.Pool(processes=args.num_workers) as pool:

@@ -23,6 +23,7 @@ class FastCxtConfig:
     max_samples: int = 200       # zero-pad SFS to this size
     window_size: int = 2000      # base SFS window in bp
     n_windows: int = 500         # number of output windows per 1Mb block
+    folded: bool = False         # fold SFS freq axis -> polarization-invariant (unpolarized)
 
     # Multi-scale convolutional stem
     stem_channels: int = 64
@@ -60,6 +61,9 @@ PRESETS: dict[str, FastCxtConfig] = {
     "base_50k": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, n_windows=50000, window_size=2000),
     "base_75k": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, n_windows=75000, window_size=2000),
     "base_125k": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, n_windows=125000, window_size=2000),
+    # Folded (unpolarized) variants -- same architecture, minor-allele frequency axis
+    "base_folded": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, folded=True),
+    "base_anogam_folded": FastCxtConfig(d_model=256, n_enc_layers=6, n_dec_layers=4, window_size=200, n_windows=500, folded=True),
 }
 
 

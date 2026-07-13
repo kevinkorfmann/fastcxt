@@ -101,7 +101,7 @@ class LazyPairDataset(Dataset):
         self.split = split
         self.max_samples = max_samples
 
-        self.items: list[tuple[str, str, str, str, int, float, float]] = []
+        self.items: list[tuple[str, str, str, str, int, float, float, float, bool]] = []
 
         split_dir = os.path.join(root, split)
         for dirpath, _dirnames, filenames in os.walk(split_dir):
@@ -115,13 +115,16 @@ class LazyPairDataset(Dataset):
 
             mutation_rate = 1e-8
             sequence_length = 1e6
+            window_size = 2000.0
+            folded = False
             meta_path = os.path.join(dirpath, "meta.json")
             if os.path.exists(meta_path):
                 with open(meta_path) as f:
                     meta = json.load(f)
                 mutation_rate = meta.get("mutation_rate", 1e-8)
                 sequence_length = float(meta.get("sequence_length", 1e6))
-            window_size = float(meta.get("window_size", 2000))
+                window_size = float(meta.get("window_size", 2000))
+                folded = bool(meta.get("folded", False))
 
             Y = np.load(y_path, mmap_mode="r")
             P = int(Y.shape[0])
@@ -129,7 +132,7 @@ class LazyPairDataset(Dataset):
             for p_idx in range(P):
                 self.items.append((
                     gm_path, pos_path, y_path, pairs_path,
-                    p_idx, mutation_rate, sequence_length, window_size,
+                    p_idx, mutation_rate, sequence_length, window_size, folded,
                 ))
 
     def __len__(self):
@@ -139,7 +142,7 @@ class LazyPairDataset(Dataset):
         from fastcxt.sfs import build_sfs_tensor
 
         (gm_path, pos_path, y_path, pairs_path,
-         p_idx, mutation_rate, sequence_length, window_size) = self.items[i]
+         p_idx, mutation_rate, sequence_length, window_size, folded) = self.items[i]
 
         gm = np.load(gm_path, mmap_mode="r")
         positions = np.load(pos_path, mmap_mode="r")
@@ -154,6 +157,7 @@ class LazyPairDataset(Dataset):
             pivot_a=pa, pivot_b=pb,
             sequence_length=sequence_length,
             window_size=int(window_size),
+            folded=folded,
         )
         Xi = torch.as_tensor(Xi, dtype=torch.float32)
 

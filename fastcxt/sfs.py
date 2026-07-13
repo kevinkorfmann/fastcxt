@@ -17,8 +17,17 @@ def calculate_window_sfs(
     sequence_length: float = 1e6,
     num_samples: int = 50,
     step_size: int = 2000,
+    folded: bool = False,
 ) -> np.ndarray:
     """Bin site frequencies into genomic windows.
+
+    Parameters
+    ----------
+    folded : bool
+        If True, fold the frequency axis to the minor-allele count
+        ``min(f, num_samples - f)``.  This makes the spectrum invariant to
+        the ancestral/derived (0/1) coding, i.e. it removes the polarization
+        requirement (see ``build_sfs_tensor``).
 
     Returns
     -------
@@ -33,7 +42,10 @@ def calculate_window_sfs(
     win_idx = np.clip(
         (positions // step_size).astype(np.int64), 0, n_windows - 1
     )
-    freq_clipped = np.clip(pivot_frequencies.astype(np.int64), 0, num_samples - 1)
+    freqs = pivot_frequencies.astype(np.int64)
+    if folded:
+        freqs = np.minimum(freqs, num_samples - freqs)
+    freq_clipped = np.clip(freqs, 0, num_samples - 1)
     flat = win_idx * num_samples + freq_clipped
     sfs = np.bincount(flat, minlength=n_windows * num_samples).astype(np.int32)
     return sfs.reshape(n_windows, num_samples)
@@ -58,12 +70,22 @@ def build_sfs_tensor(
     pivot_b: int,
     sequence_length: float = 1e6,
     window_size: int = 2000,
+    folded: bool = False,
 ) -> np.ndarray:
     """Build single-scale SFS tensor for one pivot pair.
 
     Sites are split into XOR (pivots differ) and XNOR (pivots agree)
     channels and binned at the base window resolution.  Multi-scale
     aggregation is delegated to the model's convolutional stem.
+
+    The XOR/XNOR channel assignment (``gm[a] ^ gm[b]``) is already invariant
+    to the 0/1 allele coding.  The only polarization-dependent part is the
+    frequency axis (``gm.sum(0)`` = count of the allele coded ``1``).  With
+    ``folded=True`` this axis is folded to the minor-allele count
+    ``min(f, N - f)``, which is invariant to swapping ancestral/derived, so a
+    model trained on folded features works unchanged on unpolarized inputs
+    (e.g. a standard REF/ALT VCF).  Shape is preserved: folded mass simply
+    occupies the lower half of the frequency axis.
 
     Returns
     -------
@@ -77,7 +99,10 @@ def build_sfs_tensor(
     win_idx = np.clip(
         (positions // step_size).astype(np.int64), 0, n_windows - 1
     )
-    freqs = np.clip(gm.sum(0).astype(np.int64), 0, num_samples - 1)
+    freqs = gm.sum(0).astype(np.int64)
+    if folded:
+        freqs = np.minimum(freqs, num_samples - freqs)
+    freqs = np.clip(freqs, 0, num_samples - 1)
     xor_mask = (gm[pivot_a] ^ gm[pivot_b]).astype(bool)
 
     # Flat bincount for XOR and XNOR channels
