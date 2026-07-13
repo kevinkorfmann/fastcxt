@@ -51,15 +51,82 @@ def calculate_window_sfs(
     return sfs.reshape(n_windows, num_samples)
 
 
-def basic_filtering(
+def decompose_multiallelic(
     gm: np.ndarray, positions: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Remove non-biallelic and fixed sites."""
+    """Expand multi-allelic sites into per-alt-allele bi-allelic pseudo-sites.
+
+    Allele ``0`` is treated as the reference/ancestral state.  A site carrying
+    alleles ``{0, k1, k2, ...}`` becomes one 0/1 column per alt allele present
+    (``1`` where ``gm == k``), each inheriting the site's base-pair position.
+    Bi-allelic and monomorphic sites pass through as a single 0/1 column.
+
+    This retains multi-allelic variation (which ``basic_filtering(..., "drop")``
+    discards): a pivot pair carrying two different alt alleles at a site then
+    contributes a difference in each alt column, matching the multiple
+    mutations that separate the two lineages there.  Columns are returned
+    sorted by position so downstream windowing is unaffected.
+    """
+    gm = np.asarray(gm)
+    positions = np.asarray(positions)
+    num_samples, n_sites = gm.shape
+    if n_sites == 0:
+        return gm.astype(np.int8), positions
+
+    max_per_site = gm.max(axis=0)
+    bi = max_per_site <= 1
+
+    # Bi-allelic / monomorphic sites: coerce to 0/1 in place (vectorised).
+    bi_cols = (gm[:, bi] > 0).astype(np.int8)
+    bi_pos = positions[bi]
+
+    # Multi-allelic sites are the minority: expand each alt allele.
+    extra_cols: list[np.ndarray] = []
+    extra_pos: list[float] = []
+    for s in np.nonzero(~bi)[0]:
+        col = gm[:, s]
+        for k in range(1, int(col.max()) + 1):
+            present = col == k
+            if present.any():
+                extra_cols.append(present.astype(np.int8))
+                extra_pos.append(positions[s])
+
+    if extra_cols:
+        gm_out = np.concatenate([bi_cols, np.stack(extra_cols, axis=1)], axis=1)
+        pos_out = np.concatenate([bi_pos, np.asarray(extra_pos, dtype=positions.dtype)])
+    else:
+        gm_out, pos_out = bi_cols, bi_pos
+
+    order = np.argsort(pos_out, kind="stable")
+    return gm_out[:, order], pos_out[order]
+
+
+def basic_filtering(
+    gm: np.ndarray, positions: np.ndarray, multiallelic: str = "drop"
+) -> tuple[np.ndarray, np.ndarray]:
+    """Remove fixed sites; handle multi-allelic sites per ``multiallelic``.
+
+    Parameters
+    ----------
+    multiallelic : {"drop", "decompose"}
+        ``"drop"`` (default): discard any site with an allele index >= 2
+        (strictly bi-allelic, original behaviour).
+        ``"decompose"``: expand multi-allelic sites into per-alt bi-allelic
+        pseudo-sites (see :func:`decompose_multiallelic`) so they are retained.
+    """
     num_samples = gm.shape[0]
-    non_bial = np.any(gm >= 2, axis=0)
+    if multiallelic == "decompose":
+        gm, positions = decompose_multiallelic(gm, positions)
+        drop_multi = np.zeros(gm.shape[1], dtype=bool)
+    elif multiallelic == "drop":
+        drop_multi = np.any(gm >= 2, axis=0)
+    else:
+        raise ValueError(
+            f"multiallelic must be 'drop' or 'decompose', got {multiallelic!r}"
+        )
     freq = gm.sum(0)
     fixed = (freq == 0) | (freq >= num_samples)
-    keep = ~(non_bial | fixed)
+    keep = ~(drop_multi | fixed)
     return gm[:, keep], positions[keep]
 
 

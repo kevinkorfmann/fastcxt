@@ -34,13 +34,14 @@ def _build_sources(
     workers: int = 4,
     progress: bool = True,
     folded: bool = False,
+    multiallelic: str = "drop",
 ) -> tuple[np.ndarray, np.ndarray]:
     """Build SFS source tensors for all (block, pair) combinations.
 
     Pre-slices the genotype matrix per block so each task only pickles
     the small block slice rather than the full matrix.
     """
-    gm_filt, pos_filt = basic_filtering(gm, positions)
+    gm_filt, pos_filt = basic_filtering(gm, positions, multiallelic=multiallelic)
 
     # Pre-slice per block — each block's gm/pos is small and cheap to pickle
     block_data = []
@@ -144,6 +145,7 @@ def translate_from_genotype_matrix(
     build_workers: int = 4,
     progress: bool = True,
     folded: bool | None = None,
+    multiallelic: str | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Infer pairwise TMRCA from a genotype matrix.
 
@@ -153,6 +155,9 @@ def translate_from_genotype_matrix(
         Whether to fold the SFS frequency axis (unpolarized features).  If
         None (default), taken from ``model.config.folded`` so inference
         automatically matches how the checkpoint was trained.
+    multiallelic : str or None
+        Multi-allelic handling ("drop"/"decompose").  If None (default), taken
+        from ``model.config.multiallelic`` to match how the model was trained.
 
     Returns
     -------
@@ -166,11 +171,13 @@ def translate_from_genotype_matrix(
 
     if folded is None:
         folded = bool(getattr(getattr(model, 'config', None), 'folded', False))
+    if multiallelic is None:
+        multiallelic = getattr(getattr(model, 'config', None), 'multiallelic', 'drop')
 
     X, index_map = _build_sources(
         gm, positions, blocks, pivot_pairs,
         window_size=window_size, workers=build_workers, progress=progress,
-        folded=folded,
+        folded=folded, multiallelic=multiallelic,
     )
 
     param_dtype = next(model.parameters()).dtype

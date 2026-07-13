@@ -44,7 +44,28 @@ class SimConfig:
     recombination_rate: float = 1e-8
     sequence_length: float = 1e6
     n_samples: int = 25                  # diploid individuals
+    mutation_model: str | None = None    # None=msprime default; "binary"|"jc69"|"hky"
     extra: dict = field(default_factory=dict)
+
+
+def _get_mutation_model(name: str | None):
+    """Map a mutation-model name to an msprime model instance (None = default).
+
+    ``"jc69"`` / ``"hky"`` are finite-sites nucleotide models, so recurrent
+    mutations at a site produce genuine multi-allelic sites (needed to train /
+    evaluate the multi-allelic ``decompose`` path).  ``"binary"`` stays strictly
+    bi-allelic.
+    """
+    if name is None:
+        return None
+    key = name.lower()
+    if key in ("binary", "infinite_sites", "infinite-sites"):
+        return msprime.BinaryMutationModel()
+    if key in ("jc69", "jukes-cantor", "nucleotide"):
+        return msprime.JC69()
+    if key == "hky":
+        return msprime.HKY(kappa=2.0)
+    raise ValueError(f"Unknown mutation model {name!r}; use binary|jc69|hky")
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +172,8 @@ def simulate_constant(seed: int, cfg: SimConfig) -> msprime.TreeSequence:
         random_seed=int(rng.integers(1, 2**31)),
     )
     return msprime.sim_mutations(
-        ts, rate=cfg.mutation_rate, random_seed=int(rng.integers(1, 2**31)),
+        ts, rate=cfg.mutation_rate, model=_get_mutation_model(cfg.mutation_model),
+        random_seed=int(rng.integers(1, 2**31)),
     )
 
 
@@ -196,7 +218,8 @@ def simulate_sawtooth(seed: int, cfg: SimConfig) -> msprime.TreeSequence:
         random_seed=int(rng.integers(1, 2**31)),
     )
     return msprime.sim_mutations(
-        ts, rate=cfg.mutation_rate, random_seed=int(rng.integers(1, 2**31)),
+        ts, rate=cfg.mutation_rate, model=_get_mutation_model(cfg.mutation_model),
+        random_seed=int(rng.integers(1, 2**31)),
     )
 
 
@@ -216,7 +239,8 @@ def simulate_island(seed: int, cfg: SimConfig) -> msprime.TreeSequence:
         random_seed=int(rng.integers(1, 2**31)),
     )
     return msprime.sim_mutations(
-        ts, rate=cfg.mutation_rate, random_seed=int(rng.integers(1, 2**31)),
+        ts, rate=cfg.mutation_rate, model=_get_mutation_model(cfg.mutation_model),
+        random_seed=int(rng.integers(1, 2**31)),
     )
 
 
@@ -323,6 +347,10 @@ def main():
                     help="Override mutation rate (stdpopsim uses species default)")
     ap.add_argument("--recombination-rate", type=float, default=None,
                     help="Override recombination rate")
+    ap.add_argument("--mutation-model", type=str, default=None,
+                    choices=["binary", "jc69", "hky"],
+                    help="Mutation model (msprime scenarios only). jc69/hky are "
+                         "finite-sites -> produce multi-allelic sites")
     ap.add_argument("--genetic-map", type=str, default=None,
                     help="stdpopsim genetic map name")
     ap.add_argument("--num-processes", type=int, default=8)
@@ -333,6 +361,8 @@ def main():
         overrides["mutation_rate"] = args.mutation_rate
     if args.recombination_rate is not None:
         overrides["recombination_rate"] = args.recombination_rate
+    if args.mutation_model is not None:
+        overrides["mutation_model"] = args.mutation_model
     if args.genetic_map is not None:
         overrides["genetic_map"] = args.genetic_map
 

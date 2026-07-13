@@ -120,6 +120,7 @@ def process_one_ts(
     sequence_length: int | None = None,
     accessibility_mask: np.ndarray | None = None,
     folded: bool = False,
+    multiallelic: str = "drop",
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute SFS features and log-TMRCA targets for a set of pairs.
 
@@ -128,6 +129,8 @@ def process_one_ts(
     folded : bool
         Fold the SFS frequency axis (minor-allele count) so the features are
         polarization-invariant.  See ``fastcxt.sfs.build_sfs_tensor``.
+    multiallelic : {"drop", "decompose"}
+        How to handle multi-allelic sites.  See ``fastcxt.sfs.basic_filtering``.
 
     Returns
     -------
@@ -139,7 +142,7 @@ def process_one_ts(
 
     gm = ts.genotype_matrix().T
     positions = ts.tables.sites.position
-    gm, positions = basic_filtering(gm, positions)
+    gm, positions = basic_filtering(gm, positions, multiallelic=multiallelic)
 
     if accessibility_mask is not None:
         gm, positions = apply_accessibility_mask(gm, positions, accessibility_mask, sequence_length)
@@ -245,6 +248,7 @@ class PreprocessJob:
     accessibility_mask_path: str | None
     lazy_sfs: bool = False
     folded: bool = False
+    multiallelic: str = "drop"
 
 
 def _run_job(job: PreprocessJob) -> str:
@@ -294,7 +298,7 @@ def _run_job(job: PreprocessJob) -> str:
             # Lazy SFS mode: store genotype matrix + positions, compute SFS on-the-fly
             gm = ts.genotype_matrix().T
             positions = ts.tables.sites.position
-            gm, positions = basic_filtering(gm, positions)
+            gm, positions = basic_filtering(gm, positions, multiallelic=job.multiallelic)
             if acc_mask is not None:
                 gm, positions = apply_accessibility_mask(gm, positions, acc_mask, job.sequence_length)
 
@@ -316,6 +320,7 @@ def _run_job(job: PreprocessJob) -> str:
             X, y = process_one_ts(
                 ts, pairs, job.window_size, job.sequence_length,
                 accessibility_mask=acc_mask, folded=job.folded,
+                multiallelic=job.multiallelic,
             )
             np.save(out_dir / "X.npy", X)
             np.save(out_dir / "y.npy", y)
@@ -337,6 +342,7 @@ def _run_job(job: PreprocessJob) -> str:
             "mutation_rate": float(mu_rate),
             "has_accessibility_mask": acc_mask is not None,
             "folded": bool(job.folded),
+            "multiallelic": job.multiallelic,
         }
         if job.lazy_sfs:
             meta["storage_mode"] = "lazy_sfs"
@@ -378,6 +384,9 @@ def main():
     ap.add_argument("--folded", action="store_true",
                     help="Fold the SFS frequency axis (minor-allele count) so features are "
                          "polarization-invariant / usable on unpolarized data")
+    ap.add_argument("--multiallelic", choices=["drop", "decompose"], default="drop",
+                    help="Multi-allelic sites: 'drop' (biallelic only, default) or "
+                         "'decompose' into per-alt biallelic pseudo-sites")
     args = ap.parse_args()
 
     base = pathlib.Path(args.base_dir)
@@ -411,6 +420,7 @@ def main():
             accessibility_mask_path=args.accessibility_mask,
             lazy_sfs=args.lazy_sfs,
             folded=args.folded,
+            multiallelic=args.multiallelic,
         ))
 
     with mp.Pool(processes=args.num_workers) as pool:

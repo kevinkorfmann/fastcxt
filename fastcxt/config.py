@@ -24,6 +24,7 @@ class FastCxtConfig:
     window_size: int = 2000      # base SFS window in bp
     n_windows: int = 500         # number of output windows per 1Mb block
     folded: bool = False         # fold SFS freq axis -> polarization-invariant (unpolarized)
+    multiallelic: str = "drop"   # "drop" (biallelic only) | "decompose" (per-alt biallelic)
 
     # Multi-scale convolutional stem
     stem_channels: int = 64
