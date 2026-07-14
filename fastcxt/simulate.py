@@ -269,6 +269,8 @@ STDPOPSIM_DEFAULTS: dict[str, dict] = {
     "MusMus":  {},
     "AedAeg":  {"population_size": 1_000_000},
     "HelAnn":  {"population_size": 673_968},
+    "HelMel":  {"population_size": 2_000_000},   # Heliconius melpomene (no stdpopsim demog model -> const Ne)
+    "ApiMel":  {"population_size": 1_000_000},   # Apis mellifera honeybee (no stdpopsim demog model -> const Ne)
 }
 
 
